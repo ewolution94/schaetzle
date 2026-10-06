@@ -119,8 +119,81 @@ test('only the host changes settings, and only to allowed values', async () => {
   assert.equal(settings.price, 'small');
   assert.deepEqual(settings.themes, ['toys']);
   assert.equal(settings.showTitle, false);
-  // An empty theme list keeps the old one.
-  assert.deepEqual(mergeSettings(settings, { themes: [] }).themes, ['toys']);
+  // Any selection is kept, even none; the game just won't start without one.
+  assert.deepEqual(mergeSettings(settings, { themes: ['odd', 'tech'] }).themes, ['tech', 'odd']);
+  assert.deepEqual(mergeSettings(settings, { themes: [] }).themes, []);
+  assert.equal(mergeSettings(settings, { jokers: 3 }).jokers, 3);
+  assert.equal(mergeSettings(settings, { jokers: 9 }).jokers, DEFAULT_SETTINGS.jokers);
+  await games.act(host.code, host.token, 'settings', { themes: [] });
+  await assert.rejects(games.act(host.code, host.token, 'start'), { code: 'no-themes' });
+  assert.equal(games.view(host.code).phase, 'lobby');
+});
+
+test('a joker scores the maximum without a guess, and only as often as the host allows', async () => {
+  const { games, clock, host, ben, cem } = await threePlayers({ rounds: 5, jokers: 1 });
+  const code = host.code;
+  await games.act(code, host.token, 'start');
+  assert.deepEqual(games.view(code).players.map((p) => p.jokers), [1, 1, 1]);
+
+  await games.act(code, ben.token, 'joker');
+  let view = games.view(code);
+  // Until the reveal a joker looks like any other guess.
+  assert.equal(view.players.find((p) => p.id === ben.player).guessed, true);
+  assert.equal(view.players.find((p) => p.id === ben.player).jokers, 0);
+  await assert.rejects(games.act(code, ben.token, 'guess', { value: 5 }), { code: 'already-guessed' });
+  await assert.rejects(games.act(code, ben.token, 'joker'), { code: 'already-guessed' });
+
+  const price = MOCK_ITEMS.find((i) => i.id === view.round.item.id).price;
+  await games.act(code, host.token, 'guess', { value: price * 1.1 });
+  await games.act(code, cem.token, 'guess', { value: price });
+  clock.advance(1000);
+  view = games.view(code);
+  assert.equal(view.phase, 'reveal');
+  const ben1 = view.reveal.results.find((r) => r.player === ben.player);
+  assert.deepEqual([ben1.joker, ben1.guess, ben1.points], [true, null, 1000]);
+  // At equal points the real bullseye ranks first, and "closest" is a real guess.
+  assert.deepEqual(view.reveal.results.map((r) => r.player), [cem.player, ben.player, host.player]);
+
+  await games.act(code, host.token, 'next');
+  await assert.rejects(games.act(code, ben.token, 'joker'), { code: 'no-jokers' });
+
+  // A joker on an item the host skips goes back to its player.
+  await games.act(code, cem.token, 'joker');
+  await games.act(code, host.token, 'skip');
+  assert.equal(games.view(code).players.find((p) => p.id === cem.player).jokers, 1);
+
+  // Nobody guessing but a joker still ends the round early.
+  await games.act(code, host.token, 'joker');
+  await games.act(code, ben.token, 'guess', { value: 1 });
+  await games.act(code, cem.token, 'guess', { value: 1 });
+  clock.advance(1000);
+  view = games.view(code);
+  assert.equal(view.phase, 'reveal');
+  assert.deepEqual([view.reveal.results[0].player, view.reveal.results[0].joker], [host.player, true]);
+  // The round's "closest" in the final recap is a real guess, never the joker.
+  for (let n = 3; n <= 5; n++) {
+    await games.act(code, host.token, 'next');
+    clock.advance(31_000);
+  }
+  await games.act(code, host.token, 'next');
+  const recap = games.view(code).history.find((h) => h.n === 2);
+  assert.notEqual(recap.best?.player, host.player);
+});
+
+test('jokers can be switched off, and a rematch refills them', async () => {
+  const { games, clock, host, ben } = await threePlayers({ rounds: 5, jokers: 0 });
+  await games.act(host.code, host.token, 'start');
+  await assert.rejects(games.act(host.code, ben.token, 'joker'), { code: 'no-jokers' });
+  for (let n = 1; n <= 5; n++) {
+    clock.advance(31_000);
+    await games.act(host.code, host.token, 'next');
+  }
+  await games.act(host.code, host.token, 'settings', { jokers: 2 });
+  await games.act(host.code, host.token, 'rematch');
+  await games.act(host.code, host.token, 'settings', { jokers: 2 });
+  assert.equal(games.view(host.code).settings.jokers, 2);
+  await games.act(host.code, host.token, 'start');
+  assert.deepEqual(games.view(host.code).players.map((p) => p.jokers), [2, 2, 2]);
 });
 
 test('a whole game: guesses, early reveal, scores, final, rematch', async () => {

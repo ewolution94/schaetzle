@@ -17,6 +17,8 @@
   const last = $derived(round.n >= round.total);
   const host = $derived(view.players.find((p) => p.id === view.host));
   const byId = $derived(new Map(view.players.map((p) => [p.id, p])));
+  /** The closest real guess gets the red: a joker scores the most but guessed nothing. */
+  const closest = $derived(view.reveal?.results.find((r) => r.guess !== null && r.points > 0) ?? null);
 
   const PLAYER_COLOURS: Record<string, string> = {
     mint: '#64c8b9', purple: '#b198db', orange: '#f8a171', blue: '#6ea0eb', pink: '#e89fdd',
@@ -63,7 +65,7 @@
           {#each reveal.results as result, i (result.player)}
             {@const player = byId.get(result.player)}
             {#if player}
-              <li class:me={player.id === me.id} class:top={i === 0 && result.points > 0} style:--i={i}>
+              <li class:me={player.id === me.id} class:top={result === closest} style:--i={i}>
                 <Avatar {player} size={34} />
                 <span class="who">
                   <span class="name">
@@ -71,7 +73,9 @@
                     {#if player.id === me.id}<span class="you">({t('you')})</span>{/if}
                   </span>
                   <span class="sub">
-                    {#if result.guess === null}
+                    {#if result.joker}
+                      <span class="joker">{t('joker')}</span>
+                    {:else if result.guess === null}
                       {t('noGuess')}
                     {:else}
                       <span class="guess">{formatPrice(result.guess)}</span>
@@ -238,6 +242,15 @@
     color: var(--ewo-fg-3);
     font-size: 12px;
     font-variant-numeric: tabular-nums;
+  }
+  .joker {
+    padding: 1px 7px;
+    border-radius: var(--ewo-r-pill);
+    box-shadow: inset 0 0 0 1px var(--ewo-line-strong);
+    color: var(--ewo-fg-2);
+    font: 700 10px/1.6 var(--ewo-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
   .bull {
     padding: 2px 7px;

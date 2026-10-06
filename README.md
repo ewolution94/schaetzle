@@ -13,11 +13,16 @@ spirit of [guess-the-price.net](https://guess-the-price.net/). Live at
   word) and a link like `schaetzle.ewolution.cloud/KXPT`, with a QR code for the meeting room's
   screen. No accounts: a name is enough, and a reload or a locked phone puts you back in your seat.
 - **The host sets the game:** 5, 10 or 15 rounds, 20 to 60 seconds per round, a price range (up to
-  50€, up to 500€, anything), which themes to draw from (Tech, Home, Kitchen, Fashion, Toys,
-  Collectibles, Sport & outdoors, Garden & tools, Oddities), and whether the title shows.
+  50€, up to 500€, anything), 0 to 3 jokers per player, any mix of themes to draw from (Tech, Home,
+  Kitchen, Fashion, Toys, Collectibles, Sport & outdoors, Garden & tools, Oddities; at least one to
+  start), and whether the title shows. Changes show on the host's screen the moment they're tapped
+  and reach the others a moment later.
 - **A round:** the photos to swipe through, the condition and the title, a price field that takes
   `1.250`, `12,50` or `12.50`, and a timer. You see who has locked in, not what. The round ends
   when everyone online has guessed, or when the time is up. The host can swap the item for a spare.
+- **Jokers:** instead of guessing, a player can play a joker (a second tap confirms it): the round
+  scores the full 1,000 points. Until the reveal it looks like any other guess; a joker played on an
+  item the host skips goes back to its player. Rematches refill them.
 - **The reveal:** the real price lands on the photo as a red price tag, every guess appears on a
   price line around it, and each player gets their points, how far off they were, and their total.
   On a live item there's a link to the listing.
@@ -26,6 +31,7 @@ spirit of [guess-the-price.net](https://guess-the-price.net/). Live at
 - **Scoring** looks at the ratio, because prices are multiplicative: `1000 × (1 − |log₂(guess ÷
   price)|)`, at least 0. Too high and too low by the same factor score the same; half or double the
   price scores nothing; 10 % off scores about 850. Within 2 % is a "Bullseye". Speed doesn't count.
+  The round's red highlight and the recap's "closest" go to the best real guess, never a joker.
 - **German and English**, following the browser until you switch in the footer; light and dark
   follow the system until you use the toggle. Installs to a home screen.
 
@@ -41,6 +47,9 @@ the whole view each time something changes.
   sends a heartbeat every 20 seconds, so Cloudflare never drops a quiet one.
 - **Nobody sees a price early.** During a round the view has no price; it arrives with the reveal.
   Guesses are hidden too: you only see who has guessed.
+- **The host's settings are optimistic:** the lobby shows a change at once and sends changes one
+  request at a time (merging what piles up meanwhile), so quick taps can't overtake each other; the
+  server's view takes over once it agrees, and a refusal falls back to it with a message.
 - **Seats:** joining returns a player id and a secret token, kept in the browser per room. Moves
   carry the token; the stream only needs the id (it says who's online).
 - **The host's seat moves on** after the host has been gone 15 seconds; people who close the page

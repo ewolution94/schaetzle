@@ -5,7 +5,7 @@
 //   GET  /api/rooms/:code                does it exist, is it full → {code, phase, players, full}
 //   POST /api/rooms/:code/join {name, token?}   a seat (the same one again with your token)
 //   GET  /api/rooms/:code/events?p=<id>  the room's view, now and after every change (SSE)
-//   POST /api/rooms/:code/<action>       settings, start, guess, skip, next, rematch, kick, leave
+//   POST /api/rooms/:code/<action>       settings, start, guess, joker, skip, next, rematch, kick, leave
 //                                        with your token in `x-schaetzle-token`
 //
 // Why SSE and not WebSockets: everything the server pushes is one small JSON view, moves are rare
@@ -15,7 +15,7 @@
 // Errors are `{ "error": "<code>" }` with a status; the codes are GameError's and the client
 // words them.
 
-import { GameError, ROUND_CHOICES, SECOND_CHOICES, DEFAULT_SETTINGS } from './game.mjs';
+import { GameError, ROUND_CHOICES, SECOND_CHOICES, JOKER_CHOICES, DEFAULT_SETTINGS } from './game.mjs';
 import { PRICES, THEME_KEYS } from './items/themes.mjs';
 
 const MAX_BODY = 4096;
@@ -109,6 +109,7 @@ export function createApi({ games, demo }) {
           prices: Object.keys(PRICES),
           rounds: ROUND_CHOICES,
           seconds: SECOND_CHOICES,
+          jokers: JOKER_CHOICES,
           defaults: DEFAULT_SETTINGS,
         });
         return true;

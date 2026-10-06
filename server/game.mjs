@@ -7,7 +7,7 @@
 // Phases: lobby → loading (drawing items) → guess ⇄ reveal → final → (rematch) lobby.
 
 import { randomBytes, randomInt } from 'node:crypto';
-import { bullseye, deviation, score } from './scoring.mjs';
+import { MAX_POINTS, bullseye, deviation, score } from './scoring.mjs';
 import { THEME_KEYS, isPriceRange, isTheme } from './items/themes.mjs';
 
 /** Room codes have no vowels, so no code spells a word. */
@@ -16,6 +16,8 @@ export const CODE = /^[BCDFGHJKLMNPQRSTVWXZ]{4}$/;
 
 export const ROUND_CHOICES = [5, 10, 15];
 export const SECOND_CHOICES = [20, 30, 45, 60];
+/** Jokers per player and game. A joker scores the round's maximum without a guess. */
+export const JOKER_CHOICES = [0, 1, 2, 3];
 export const COLORS = ['mint', 'purple', 'orange', 'blue', 'pink', 'green', 'yellow', 'beige', 'teal', 'plum'];
 
 export const LIMITS = {
@@ -45,6 +47,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   price: 'everyday',
   themes: Object.freeze([...THEME_KEYS]),
   showTitle: true,
+  jokers: 1,
 });
 
 export class GameError extends Error {
@@ -130,6 +133,8 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
       name,
       color,
       score: 0,
+      // Someone joining mid-game gets the game's allowance too.
+      jokers: r.settings.jokers,
       joined: clock.now(),
       online: 0,
       offlineSince: clock.now(),
@@ -164,7 +169,9 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         color: p.color,
         score: p.score,
         online: p.online > 0,
-        guessed: Boolean(round && round.guesses.has(p.id)),
+        jokers: p.jokers,
+        // A joker counts as a guess until the reveal, so nobody can tell who played one.
+        guessed: Boolean(round && (round.guesses.has(p.id) || round.jokers.has(p.id))),
       })),
       round: round
         ? {
@@ -199,7 +206,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
   function startRound(r, n, item) {
     clock.clearTimeout(r.timer);
     const now = clock.now();
-    r.round = { n, item, startsAt: now, endsAt: now + r.settings.seconds * 1000, guesses: new Map(), results: null };
+    r.round = { n, item, startsAt: now, endsAt: now + r.settings.seconds * 1000, guesses: new Map(), jokers: new Set(), results: null };
     r.phase = 'guess';
     r.timer = clock.setTimeout(() => reveal(r), r.settings.seconds * 1000);
   }
@@ -208,22 +215,25 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
     if (r.phase !== 'guess' || !r.round) return;
     clock.clearTimeout(r.timer);
     r.timer = null;
-    const { item, guesses } = r.round;
+    const { item, guesses, jokers } = r.round;
     const results = present(r).map((p) => {
-      const guess = guesses.get(p.id) ?? null;
-      const points = guess === null ? 0 : score(guess, item.price);
+      const joker = jokers.has(p.id);
+      const guess = joker ? null : (guesses.get(p.id) ?? null);
+      const points = joker ? MAX_POINTS : guess === null ? 0 : score(guess, item.price);
       p.score += points;
       return {
         player: p.id,
         guess,
+        joker,
         points,
         deviation: guess === null ? null : deviation(guess, item.price),
         bullseye: guess !== null && bullseye(guess, item.price),
       };
     });
-    results.sort((a, b) => b.points - a.points || Math.abs(a.deviation ?? 9) - Math.abs(b.deviation ?? 9));
+    // Real guesses before jokers at equal points: the list ranks how close people got.
+    results.sort((a, b) => b.points - a.points || Number(a.joker) - Number(b.joker) || Math.abs(a.deviation ?? 9) - Math.abs(b.deviation ?? 9));
     r.round.results = results;
-    const best = results[0] && results[0].guess !== null ? results[0] : null;
+    const best = results.find((x) => x.guess !== null) ?? null;
     r.history.push({
       n: r.round.n,
       title: item.title,
@@ -240,8 +250,9 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
   /** Reveal now if everyone who's here has guessed (after a short beat). */
   function maybeReveal(r) {
     if (r.phase !== 'guess' || !r.round || r.round.early) return;
-    const waiting = present(r).filter((p) => p.online > 0 && !r.round.guesses.has(p.id));
-    if (waiting.length || !r.round.guesses.size) return;
+    const { guesses, jokers } = r.round;
+    const waiting = present(r).filter((p) => p.online > 0 && !guesses.has(p.id) && !jokers.has(p.id));
+    if (waiting.length || (!guesses.size && !jokers.size)) return;
     r.round.early = true;
     const round = r.round;
     clock.clearTimeout(r.timer);
@@ -251,6 +262,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
   }
 
   async function startGame(r) {
+    if (!r.settings.themes.length) throw new GameError('no-themes', 409);
     if (!within(starts, 60 * 60_000, LIMITS.startsPerHour)) throw new GameError('busy', 429);
     r.phase = 'loading';
     r.notice = null;
@@ -283,7 +295,10 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
     r.queue = items.slice(0, rounds);
     r.spares = items.slice(rounds);
     r.history = [];
-    for (const p of r.players.values()) p.score = 0;
+    for (const p of r.players.values()) {
+      p.score = 0;
+      p.jokers = r.settings.jokers;
+    }
     startRound(r, 1, r.queue[0]);
     touch(r);
   }
@@ -427,7 +442,18 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
           if (r.round.guesses.has(p.id)) throw new GameError('already-guessed', 409);
           const value = Number(body.value);
           if (!Number.isFinite(value) || value <= 0 || value > LIMITS.guess) throw new GameError('guess');
+          if (r.round.jokers.has(p.id)) throw new GameError('already-guessed', 409);
           r.round.guesses.set(p.id, Math.round(value * 100) / 100);
+          touch(r);
+          maybeReveal(r);
+          return;
+        }
+        case 'joker': {
+          requirePhase(r, 'guess');
+          if (r.round.guesses.has(p.id) || r.round.jokers.has(p.id)) throw new GameError('already-guessed', 409);
+          if (!(p.jokers > 0)) throw new GameError('no-jokers', 409);
+          p.jokers--;
+          r.round.jokers.add(p.id);
           touch(r);
           maybeReveal(r);
           return;
@@ -437,6 +463,11 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
           requirePhase(r, 'guess');
           const next = r.spares.shift();
           if (!next) throw new GameError('no-spares', 409);
+          // A joker played on the skipped item goes back to its player.
+          for (const id of r.round.jokers) {
+            const q = r.players.get(id);
+            if (q) q.jokers++;
+          }
           r.queue[r.round.n - 1] = next;
           startRound(r, r.round.n, next);
           touch(r);
@@ -458,7 +489,10 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
           r.phase = 'lobby';
           r.round = null;
           r.history = [];
-          for (const q of r.players.values()) q.score = 0;
+          for (const q of r.players.values()) {
+            q.score = 0;
+            q.jokers = r.settings.jokers;
+          }
           touch(r);
           return;
         }
@@ -555,10 +589,9 @@ export function mergeSettings(current, body) {
   if (SECOND_CHOICES.includes(body?.seconds)) next.seconds = body.seconds;
   if (isPriceRange(body?.price)) next.price = body.price;
   if (typeof body?.showTitle === 'boolean') next.showTitle = body.showTitle;
-  if (Array.isArray(body?.themes)) {
-    const themes = THEME_KEYS.filter((key) => body.themes.includes(key) && isTheme(key));
-    if (themes.length) next.themes = themes;
-  }
+  if (JOKER_CHOICES.includes(body?.jokers)) next.jokers = body.jokers;
+  // Any selection, none included: the host picks freely, and a game only starts with one or more.
+  if (Array.isArray(body?.themes)) next.themes = THEME_KEYS.filter((key) => body.themes.includes(key) && isTheme(key));
   return next;
 }
 

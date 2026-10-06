@@ -23,8 +23,11 @@
   let text = $state('');
   let error = $state('');
   let busy = $state(false);
-  /** What you locked in, kept per item so a reload still shows it. */
-  let locked: number | null = $state(null);
+  /** What you locked in, kept per item so a reload still shows it: a price, or 'joker'. */
+  let locked: number | 'joker' | null = $state(null);
+  /** The joker button asks once more before it spends one. */
+  let confirming = $state(false);
+  let confirmTimer = 0;
   let left = $state(0);
   let input: HTMLInputElement | undefined = $state();
 
@@ -35,8 +38,9 @@
 
   onMount(() => {
     try {
-      const saved = Number(sessionStorage.getItem(key));
-      if (saved > 0) locked = saved;
+      const saved = sessionStorage.getItem(key);
+      if (saved === 'joker') locked = 'joker';
+      else if (Number(saved) > 0) locked = Number(saved);
     } catch {
       // not kept
     }
@@ -45,8 +49,38 @@
     const timer = setInterval(tick, 250);
     // A keyboard is there already on a laptop; on a phone the photo comes first.
     if (matchMedia('(hover: hover) and (pointer: fine)').matches && !me.guessed) input?.focus({ preventScroll: true });
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(confirmTimer);
+    };
   });
+
+  function remember(value: number | 'joker') {
+    locked = value;
+    try {
+      sessionStorage.setItem(key, String(value));
+    } catch {
+      // fine
+    }
+  }
+
+  async function joker() {
+    if (busy || done) return;
+    if (!confirming) {
+      confirming = true;
+      clearTimeout(confirmTimer);
+      confirmTimer = window.setTimeout(() => (confirming = false), 4000);
+      return;
+    }
+    clearTimeout(confirmTimer);
+    confirming = false;
+    busy = true;
+    if (await act('joker')) {
+      remember('joker');
+      input?.blur();
+    }
+    busy = false;
+  }
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -59,12 +93,7 @@
     busy = true;
     error = '';
     if (await act('guess', { value })) {
-      locked = value;
-      try {
-        sessionStorage.setItem(key, String(value));
-      } catch {
-        // fine
-      }
+      remember(value);
       input?.blur();
     }
     busy = false;
@@ -93,9 +122,15 @@
 
       {#if done}
         <div class="locked" role="status">
-          <span class="label">{t('yourGuess')}</span>
-          <span class="mine price">{locked !== null ? formatPrice(locked) : '✓'}</span>
-          <span class="hint">{waiting ? t('waitingOthers') : t('everyoneIn')}</span>
+          {#if locked === 'joker'}
+            <span class="label">{t('joker')}</span>
+            <span class="mine price">{t('jokerPlayed')}</span>
+            <span class="hint">{t('jokerPlayedHint')} {waiting ? t('waitingOthers') : t('everyoneIn')}</span>
+          {:else}
+            <span class="label">{t('yourGuess')}</span>
+            <span class="mine price">{locked !== null ? formatPrice(locked) : '✓'}</span>
+            <span class="hint">{waiting ? t('waitingOthers') : t('everyoneIn')}</span>
+          {/if}
         </div>
       {:else}
         <form class="guess" onsubmit={submit}>
@@ -116,6 +151,15 @@
           </div>
           <button class="btn primary block" disabled={busy || !text.trim()}>{t('submit')}</button>
           {#if error}<p class="error" role="alert">{error}</p>{/if}
+          {#if me.jokers > 0}
+            <button type="button" class="btn joker block" class:confirming disabled={busy} onclick={joker}>
+              {#if confirming}
+                {t('jokerConfirm')}
+              {:else}
+                {t('useJoker')} <span class="left">{t('jokerLeft', { n: me.jokers })}</span>
+              {/if}
+            </button>
+          {/if}
         </form>
       {/if}
 
@@ -237,6 +281,23 @@
     pointer-events: none;
   }
 
+  /* The joker: quiet until it's asked about, then it says plainly what it does. */
+  .joker {
+    min-height: 44px;
+    background: transparent;
+    color: var(--ewo-fg);
+    box-shadow: inset 0 0 0 1px var(--ewo-line-strong);
+    font-size: 15px;
+  }
+  .joker .left {
+    color: var(--ewo-fg-3);
+    font-weight: 500;
+  }
+  .joker.confirming {
+    background: var(--red-soft);
+    color: var(--red-text);
+    box-shadow: inset 0 0 0 1px var(--red-text);
+  }
   .locked {
     display: flex;
     flex-direction: column;

@@ -16,8 +16,59 @@
 
   const url = $derived(`${location.origin}/${view.code}`);
   const host = $derived(view.players.find((p) => p.id === view.host));
-  const loading = $derived(view.phase === 'loading');
-  const allThemes = $derived(view.settings.themes.length === THEMES.length);
+
+  // The host's choices show the moment they're tapped. They go to the server one request at a time
+  // (so two quick taps can't arrive in the wrong order and undo each other), and the server's view
+  // takes over again once it agrees. A refusal drops the local choices; act() says why.
+  let pending: Partial<Settings> = $state({});
+  let queue: Partial<Settings> = {};
+  let sending: Promise<void> | null = null;
+  const settings: Settings = $derived({ ...view.settings, ...pending });
+
+  function set(patch: Partial<Settings>) {
+    pending = { ...pending, ...patch };
+    queue = { ...queue, ...patch };
+    sending ??= flush();
+  }
+
+  async function flush() {
+    while (Object.keys(queue).length) {
+      const patch = queue;
+      queue = {};
+      if (!(await act('settings', patch))) {
+        pending = {};
+        queue = {};
+      }
+    }
+    sending = null;
+  }
+
+  const same = (a: unknown, b: unknown) => (Array.isArray(a) && Array.isArray(b) ? a.join() === b.join() : a === b);
+  $effect(() => {
+    const server = view.settings;
+    const keys = Object.keys(pending) as (keyof Settings)[];
+    const left = keys.filter((key) => !same(server[key], pending[key]));
+    if (left.length !== keys.length) pending = Object.fromEntries(left.map((key) => [key, pending[key]]));
+  });
+
+  /** The theme pills toggle freely, any number of them; a game needs at least one. */
+  function toggleTheme(theme: Theme) {
+    const current = settings.themes;
+    const next = current.includes(theme) ? current.filter((x) => x !== theme) : [...current, theme];
+    set({ themes: THEMES.filter((x) => next.includes(x)) });
+  }
+
+  let starting = $state(false);
+  const loading = $derived(view.phase === 'loading' || starting);
+  const noThemes = $derived(settings.themes.length === 0);
+
+  async function start() {
+    starting = true;
+    // Settings still on their way go first, so the game starts with what the host sees.
+    if (sending) await sending;
+    await act('start');
+    starting = false;
+  }
 
   let copied = $state(false);
   let qrOpen = $state(false);
@@ -33,25 +84,16 @@
     }
   }
 
-  function set(patch: Partial<Settings>) {
-    void act('settings', patch);
-  }
-
-  function toggleTheme(theme: Theme) {
-    const current = view.settings.themes;
-    // From "all", a tap picks just that one; otherwise it toggles. The last one stays on.
-    let next = allThemes ? [theme] : current.includes(theme) ? current.filter((x) => x !== theme) : [...current, theme];
-    if (!next.length) next = [theme];
-    set({ themes: next });
-  }
-
   const notice = $derived(view.notice?.startsWith('items-failed:') ? t('notice:items', { reason: view.notice.slice(13) }) : null);
   const summary = $derived(
     [
-      `${view.settings.rounds} ${t('rounds')}`,
-      t('seconds', { n: view.settings.seconds }),
-      t(`price_${view.settings.price}` as Key),
-      allThemes ? `${t('themes')}: ${t('allThemes')}` : view.settings.themes.map((x) => t(`theme_${x}` as Key)).join(', '),
+      `${settings.rounds} ${t('rounds')}`,
+      t('seconds', { n: settings.seconds }),
+      t(`price_${settings.price}` as Key),
+      t('jokersSummary', { n: settings.jokers }),
+      settings.themes.length === THEMES.length
+        ? `${t('themes')}: ${t('allThemes')}`
+        : settings.themes.map((x) => t(`theme_${x}` as Key)).join(', ') || `${t('themes')}: ${t('noThemes')}`,
     ].join(' · '),
   );
 </script>
@@ -108,7 +150,7 @@
         <ewo-segmented
           tone="accent"
           label={t('rounds')}
-          value={String(view.settings.rounds)}
+          value={String(settings.rounds)}
           options={[5, 10, 15].map((n) => ({ value: String(n), label: String(n) }))}
           disabled={loading}
           onchange={(e) => set({ rounds: Number(e.detail.value) })}
@@ -119,7 +161,7 @@
         <ewo-segmented
           tone="accent"
           label={t('time')}
-          value={String(view.settings.seconds)}
+          value={String(settings.seconds)}
           options={[20, 30, 45, 60].map((n) => ({ value: String(n), label: t('seconds', { n }) }))}
           disabled={loading}
           onchange={(e) => set({ seconds: Number(e.detail.value) })}
@@ -130,30 +172,47 @@
         <ewo-segmented
           tone="accent"
           label={t('prices')}
-          value={view.settings.price}
+          value={settings.price}
           options={PRICES.map((p) => ({ value: p, label: t(`price_${p}` as Key) }))}
           disabled={loading}
           onchange={(e) => set({ price: e.detail.value as PriceRange })}
         ></ewo-segmented>
       </div>
+      <div class="setting">
+        <span class="named">
+          {t('jokers')}
+          <small>{t('jokersHint')}</small>
+        </span>
+        <ewo-segmented
+          tone="accent"
+          label={t('jokers')}
+          value={String(settings.jokers)}
+          options={[0, 1, 2, 3].map((n) => ({ value: String(n), label: String(n) }))}
+          disabled={loading}
+          onchange={(e) => set({ jokers: Number(e.detail.value) })}
+        ></ewo-segmented>
+      </div>
       <div class="setting themes">
-        <span>{t('themes')}</span>
+        <div class="themes-head">
+          <span>{t('themes')} <span class="count">{t('themesCount', { n: settings.themes.length, total: THEMES.length })}</span></span>
+          <span class="bulk">
+            <button class="link" disabled={loading || settings.themes.length === THEMES.length} onclick={() => set({ themes: THEMES })}>{t('allThemes')}</button>
+            <button class="link" disabled={loading || noThemes} onclick={() => set({ themes: [] })}>{t('noThemes')}</button>
+          </span>
+        </div>
         <div class="chips">
-          <button class="chip" aria-pressed={allThemes} disabled={loading} onclick={() => set({ themes: THEMES })}>{t('allThemes')}</button>
           {#each THEMES as theme (theme)}
-            <button
-              class="chip"
-              aria-pressed={!allThemes && view.settings.themes.includes(theme)}
-              disabled={loading}
-              onclick={() => toggleTheme(theme)}>{t(`theme_${theme}` as Key)}</button
-            >
+            <button class="chip" aria-pressed={settings.themes.includes(theme)} disabled={loading} onclick={() => toggleTheme(theme)}>
+              {t(`theme_${theme}` as Key)}
+            </button>
           {/each}
         </div>
+        {#if noThemes}<p class="error" role="status">{t('pickTheme')}</p>{/if}
       </div>
       <ewo-switch
         row
         tone="accent"
-        checked={view.settings.showTitle}
+        checked={settings.showTitle}
         disabled={loading}
         onchange={(e) => set({ showTitle: e.detail.checked })}
       >
@@ -168,7 +227,7 @@
   <div class="start">
     {#if notice}<p class="error" role="alert">{notice}</p>{/if}
     {#if isHost}
-      <button class="btn primary block" disabled={loading} onclick={() => act('start')}>
+      <button class="btn primary block" disabled={loading || noThemes} onclick={start}>
         {loading ? t('starting') : t('start')}
       </button>
     {:else}
@@ -338,6 +397,52 @@
     flex-direction: column;
     align-items: stretch;
   }
+  .named {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .named small {
+    color: var(--ewo-fg-3);
+    font-size: 13px;
+    font-weight: 400;
+  }
+  .themes-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .count {
+    margin-left: 6px;
+    color: var(--ewo-fg-3);
+    font-weight: 400;
+    font-size: 13px;
+  }
+  .bulk {
+    display: flex;
+    gap: 2px;
+  }
+  .link {
+    min-height: 32px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ewo-fg-2);
+    font: 500 14px/1 var(--ewo-sans);
+  }
+  .link:hover:not(:disabled) {
+    color: var(--ewo-fg);
+    background: var(--ewo-fill-2);
+  }
+  .link:disabled {
+    color: var(--ewo-fg-4);
+    cursor: default;
+  }
+  .themes .error {
+    margin: 0;
+  }
   .chips {
     display: flex;
     flex-wrap: wrap;
@@ -356,6 +461,9 @@
     background: var(--ewo-invert);
     border-color: var(--ewo-invert);
     color: var(--ewo-invert-ink);
+  }
+  .chip:active:not(:disabled) {
+    transform: scale(0.96);
   }
   .chip:disabled {
     opacity: 0.5;

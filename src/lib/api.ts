@@ -11,6 +11,8 @@ export interface Settings {
   price: PriceRange;
   themes: Theme[];
   showTitle: boolean;
+  /** Jokers per player and game; a joker scores the round's maximum without a guess. */
+  jokers: number;
 }
 
 export interface Player {
@@ -19,7 +21,10 @@ export interface Player {
   color: string;
   score: number;
   online: boolean;
+  /** Guessed, or played a joker (the two look the same until the reveal). */
   guessed: boolean;
+  /** Jokers left in this game. */
+  jokers: number;
 }
 
 export interface Art {
@@ -39,6 +44,7 @@ export interface Item {
 export interface Result {
   player: string;
   guess: number | null;
+  joker: boolean;
   points: number;
   deviation: number | null;
   bullseye: boolean;
@@ -81,6 +87,7 @@ export interface Config {
   prices: PriceRange[];
   rounds: number[];
   seconds: number[];
+  jokers: number[];
 }
 
 /** A refusal from the server ("no-room", "not-host" …) or a network failure ("offline"). */
