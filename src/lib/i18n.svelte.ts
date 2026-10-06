@@ -1,0 +1,253 @@
+// German and English, following the browser until the switch in the footer is used. The choice
+// is kept under `ewo:lang` (the family's key); public/boot.js applies it before first paint.
+// Product titles stay as eBay has them (German): they're the listing's own words.
+
+export type Lang = 'de' | 'en';
+
+const KEY = 'ewo:lang';
+
+function initial(): Lang {
+  try {
+    const stored = localStorage.getItem(KEY);
+    if (stored === 'en' || stored === 'de') return stored;
+  } catch {
+    // storage blocked: follow the browser
+  }
+  return navigator.language?.toLowerCase().startsWith('de') ? 'de' : 'en';
+}
+
+export const i18n = $state({ lang: initial() });
+
+export function setLang(lang: Lang) {
+  i18n.lang = lang;
+  document.documentElement.lang = lang;
+  try {
+    localStorage.setItem(KEY, lang);
+  } catch {
+    // not kept, still applied
+  }
+}
+
+const STRINGS = {
+  de: {
+    // start
+    yourName: 'Dein Name',
+    namePlaceholder: 'z. B. Kim',
+    newGame: 'Neues Spiel',
+    or: 'oder',
+    code: 'Spielcode',
+    codePlaceholder: 'ABCD',
+    join: 'Mitspielen',
+    joinGame: 'Spiel {code}',
+    joinWho: '{n} spielen schon mit',
+    joinWhoOne: 'Eine Person wartet schon',
+    joinRunning: 'Das Spiel läuft schon: Du steigst in der aktuellen Runde ein.',
+    back: 'Zurück',
+    demoNote: 'Demo: Beispielartikel mit geschätzten Preisen',
+    demo: 'Demo',
+    demoItems: 'Beispielartikel mit geschätzten Preisen',
+    // lobby
+    shareTitle: 'Leute einladen',
+    copyLink: 'Link kopieren',
+    copied: 'Kopiert',
+    showQr: 'QR-Code',
+    hideQr: 'QR-Code ausblenden',
+    qrLabel: 'QR-Code für {url}',
+    players: 'Mitspielende',
+    you: 'du',
+    host: 'Leitung',
+    offline: 'offline',
+    remove: '{name} entfernen',
+    settings: 'Einstellungen',
+    rounds: 'Runden',
+    time: 'Zeit pro Runde',
+    seconds: '{n} s',
+    prices: 'Preise',
+    price_small: 'bis 50€',
+    price_everyday: 'bis 500€',
+    price_all: 'alles',
+    themes: 'Themen',
+    allThemes: 'Alle',
+    showTitle: 'Titel zeigen',
+    showTitleHint: 'Ohne Titel wird’s schwerer.',
+    start: 'Spiel starten',
+    starting: 'Artikel werden gesucht …',
+    waitingFor: 'Warte auf {name} …',
+    leave: 'Spiel verlassen',
+    // rounds
+    round: 'Runde {n}/{total}',
+    secondsLeft: 'noch {n} Sekunden',
+    yourGuess: 'Dein Tipp',
+    guessPlaceholder: '0',
+    submit: 'Tipp abgeben',
+    locked: 'Dein Tipp: {price}',
+    waitingOthers: 'Warte auf die anderen …',
+    everyoneIn: 'Alle haben getippt',
+    skip: 'Anderer Artikel',
+    skipsLeft: 'noch {n}',
+    noTitle: 'Titel verdeckt',
+    photo: 'Foto {n} von {total}',
+    // reveal
+    realPrice: 'Preis',
+    demoPrice: 'Demo-Preis',
+    noGuess: 'kein Tipp',
+    bullseye: 'Volltreffer',
+    total: '{points} gesamt',
+    points: '{points} Punkte',
+    onEbay: 'Bei eBay ansehen',
+    next: 'Nächste Runde',
+    toResults: 'Zum Ergebnis',
+    closest: 'Am nächsten dran',
+    // final
+    results: 'Ergebnis',
+    winner: '{name} gewinnt',
+    tie: 'Unentschieden',
+    recap: 'Alle Runden',
+    rematch: 'Nochmal',
+    // themes
+    theme_tech: 'Technik',
+    theme_home: 'Wohnen',
+    theme_kitchen: 'Küche',
+    theme_fashion: 'Mode',
+    theme_toys: 'Spielzeug',
+    theme_collect: 'Sammeln',
+    theme_outdoor: 'Sport & Freizeit',
+    theme_garden: 'Garten & Werkzeug',
+    theme_odd: 'Kurioses',
+    // problems
+    'error:name': 'Bitte gib einen Namen ein.',
+    'error:no-room': 'Dieses Spiel gibt es nicht (mehr).',
+    'error:room-full': 'Das Spiel ist voll.',
+    'error:busy': 'Gerade ist zu viel los. Versuch’s gleich nochmal.',
+    'error:offline': 'Keine Verbindung zum Server.',
+    'error:no-player': 'Du bist nicht mehr in diesem Spiel.',
+    'error:guess': 'Das ist kein Preis.',
+    'error:already-guessed': 'Du hast schon getippt.',
+    'error:no-spares': 'Keine Ersatzartikel mehr.',
+    'error:wrong-phase': 'Das geht gerade nicht.',
+    'error:not-host': 'Das darf nur die Spielleitung.',
+    'error:other': 'Etwas ist schiefgegangen.',
+    'notice:items': 'Es konnten keine Artikel geladen werden ({reason}). Nochmal versuchen?',
+    reconnecting: 'Verbindung wird wiederhergestellt …',
+    gone: 'Dieses Spiel ist vorbei.',
+    home: 'Zur Startseite',
+    // footer
+    allApps: 'Alle Apps',
+    language: 'Sprache',
+    toLight: 'Helles Design',
+    toDark: 'Dunkles Design',
+  },
+  en: {
+    yourName: 'Your name',
+    namePlaceholder: 'e.g. Kim',
+    newGame: 'New game',
+    or: 'or',
+    code: 'Game code',
+    codePlaceholder: 'ABCD',
+    join: 'Join',
+    joinGame: 'Game {code}',
+    joinWho: '{n} people are in',
+    joinWhoOne: 'One person is waiting',
+    joinRunning: 'The game is on: you join in the current round.',
+    back: 'Back',
+    demoNote: 'Demo: sample items with estimated prices',
+    demo: 'Demo',
+    demoItems: 'Sample items with estimated prices',
+    shareTitle: 'Invite people',
+    copyLink: 'Copy link',
+    copied: 'Copied',
+    showQr: 'QR code',
+    hideQr: 'Hide QR code',
+    qrLabel: 'QR code for {url}',
+    players: 'Players',
+    you: 'you',
+    host: 'Host',
+    offline: 'offline',
+    remove: 'Remove {name}',
+    settings: 'Settings',
+    rounds: 'Rounds',
+    time: 'Time per round',
+    seconds: '{n} s',
+    prices: 'Prices',
+    price_small: 'up to 50€',
+    price_everyday: 'up to 500€',
+    price_all: 'anything',
+    themes: 'Themes',
+    allThemes: 'All',
+    showTitle: 'Show title',
+    showTitleHint: 'Harder without it.',
+    start: 'Start game',
+    starting: 'Finding items …',
+    waitingFor: 'Waiting for {name} …',
+    leave: 'Leave game',
+    round: 'Round {n}/{total}',
+    secondsLeft: '{n} seconds left',
+    yourGuess: 'Your guess',
+    guessPlaceholder: '0',
+    submit: 'Lock it in',
+    locked: 'Your guess: {price}',
+    waitingOthers: 'Waiting for the others …',
+    everyoneIn: 'Everyone’s in',
+    skip: 'Different item',
+    skipsLeft: '{n} left',
+    noTitle: 'Title hidden',
+    photo: 'Photo {n} of {total}',
+    realPrice: 'Price',
+    demoPrice: 'Demo price',
+    noGuess: 'no guess',
+    bullseye: 'Bullseye',
+    total: '{points} total',
+    points: '{points} points',
+    onEbay: 'View on eBay',
+    next: 'Next round',
+    toResults: 'See results',
+    closest: 'Closest',
+    results: 'Results',
+    winner: '{name} wins',
+    tie: 'It’s a tie',
+    recap: 'Every round',
+    rematch: 'Play again',
+    theme_tech: 'Tech',
+    theme_home: 'Home',
+    theme_kitchen: 'Kitchen',
+    theme_fashion: 'Fashion',
+    theme_toys: 'Toys',
+    theme_collect: 'Collectibles',
+    theme_outdoor: 'Sport & outdoors',
+    theme_garden: 'Garden & tools',
+    theme_odd: 'Oddities',
+    'error:name': 'Please enter a name.',
+    'error:no-room': 'This game doesn’t exist (anymore).',
+    'error:room-full': 'This game is full.',
+    'error:busy': 'Too much going on right now. Try again in a moment.',
+    'error:offline': 'Can’t reach the server.',
+    'error:no-player': 'You’re no longer in this game.',
+    'error:guess': 'That’s not a price.',
+    'error:already-guessed': 'You already guessed.',
+    'error:no-spares': 'No spare items left.',
+    'error:wrong-phase': 'Not right now.',
+    'error:not-host': 'Only the host can do that.',
+    'error:other': 'Something went wrong.',
+    'notice:items': 'Couldn’t load any items ({reason}). Try again?',
+    reconnecting: 'Reconnecting …',
+    gone: 'This game is over.',
+    home: 'Back to start',
+    allApps: 'All apps',
+    language: 'Language',
+    toLight: 'Light theme',
+    toDark: 'Dark theme',
+  },
+} satisfies Record<Lang, Record<string, string>>;
+
+export type Key = keyof typeof STRINGS.de;
+
+/** A string in the current language, with {name} placeholders filled in. */
+export function t(key: Key, vars: Record<string, string | number> = {}): string {
+  return STRINGS[i18n.lang][key].replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? ''));
+}
+
+/** An error code from the server, in words. */
+export function errorText(code: string): string {
+  const key = `error:${code}` as Key;
+  return key in STRINGS.de ? t(key) : t('error:other');
+}

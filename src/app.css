@@ -1,0 +1,209 @@
+/* Folio's shared tokens and fonts (vendor/ewo, from `npm run vendor -- schaetzle` in Folio).
+   The page is the family's: paper, Geist, the dot field, monochrome. The accent is OTTO's red,
+   from OTTO's own design tokens (otto-red 100/125, text default #212121, frame #f0f0f0), for the
+   one thing that matters most: the price. Product photos bring every other colour. */
+@import '../vendor/ewo/tokens/index.css';
+@import '../vendor/ewo/tokens/base.css';
+
+:root {
+  --gutter: clamp(16px, 3vw, 40px);
+  --page: 1080px;
+  --bar-h: 60px;
+  /* Cards: Folio's panel made opaque, so the dot field never runs through text. */
+  --surface: light-dark(#ffffff, #161619);
+  --surface-2: light-dark(#f7f6f3, #1d1d21);
+  /* OTTO red. As a fill it carries white text (5.2:1) in both themes; as text it's deepened on
+     paper and lightened on the night page so it clears 4.5:1. */
+  --red: #dc001d;
+  --red-hover: #c4001a;
+  --red-text: light-dark(#c4001a, #ff6270);
+  --red-soft: light-dark(#fee2e4, rgb(255 66 85 / 0.14));
+  /* OTTO's ink and frame grey, for the price tag's string and photo plates. */
+  --otto-ink: #212121;
+  --plate: #ffffff;
+  --radius: 12px;
+  --card-radius: var(--ewo-r-lg);
+}
+
+/* The page colour lives on <html> only, so the fixed dot field (z-index 0) shows through. */
+body {
+  background: transparent;
+  font-size: 15px;
+}
+
+html {
+  overflow-x: clip;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- the shared pieces of every screen --------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--ewo-line-2);
+  border-radius: var(--card-radius);
+  box-shadow: var(--ewo-shadow);
+}
+
+.label {
+  font: 500 var(--ewo-text-2xs) / 1.4 var(--ewo-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ewo-fg-3);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: var(--radius);
+  font: 600 16px / 1.2 var(--ewo-sans);
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--ewo-dur-1) var(--ewo-ease);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.btn:focus-visible,
+.input:focus-visible {
+  outline: 2px solid var(--red-text);
+  outline-offset: 2px;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* A translucent red button would let the dot field show through it: mix it solid instead. */
+.btn.primary:disabled {
+  opacity: 1;
+  background: color-mix(in oklab, var(--red) 38%, var(--surface));
+  color: rgb(255 255 255 / 0.72);
+}
+.btn.primary {
+  background: var(--red);
+  color: #ffffff;
+}
+@media (hover: hover) {
+  .btn.primary:hover:not(:disabled) {
+    background: var(--red-hover);
+  }
+  .btn.secondary:hover:not(:disabled) {
+    background: var(--ewo-fill-3);
+  }
+  .btn.quiet:hover:not(:disabled) {
+    color: var(--ewo-fg);
+  }
+}
+.btn.secondary {
+  background: var(--ewo-fill-2);
+  color: var(--ewo-fg);
+  box-shadow: inset 0 0 0 1px var(--ewo-line);
+}
+.btn.quiet {
+  min-height: 40px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--ewo-fg-2);
+  font-weight: 500;
+  font-size: 14px;
+}
+.btn.block {
+  width: 100%;
+}
+
+/* Form controls stay at 16px or more: smaller ones make iOS zoom the page. */
+.input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 1px solid var(--ewo-line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ewo-fg);
+  font: 500 17px / 1.2 var(--ewo-sans);
+}
+.input::placeholder {
+  color: var(--ewo-fg-4);
+}
+.input:focus {
+  border-color: var(--red-text);
+}
+
+/* Prices are set like OTTO sets them: heavy, tight, with even figures. */
+.price {
+  font-family: var(--ewo-sans);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.error {
+  color: var(--red-text);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Player colours, from OTTO's palette (base 100–110), all carrying the dark ink at 4.5:1 or more. */
+.c-mint { --pc: #64c8b9; }
+.c-purple { --pc: #b198db; }
+.c-orange { --pc: #f8a171; }
+.c-blue { --pc: #6ea0eb; }
+.c-pink { --pc: #e89fdd; }
+.c-green { --pc: #a9e034; }
+.c-yellow { --pc: #f5d547; }
+.c-beige { --pc: #d8bda4; }
+.c-teal { --pc: #099f91; }
+.c-plum { --pc: #9c7fcb; }
+
+/* The demo items' grounds: OTTO's soft colours on paper, its strong ones dimmed at night. */
+.t-beige { --tint: light-dark(#f5e6d7, color-mix(in oklab, #603117 55%, #161619)); }
+.t-blue { --tint: light-dark(#c5eaff, color-mix(in oklab, #1e5a78 60%, #161619)); }
+.t-green { --tint: light-dark(#dbfb98, color-mix(in oklab, #5e8114 55%, #161619)); }
+.t-mint { --tint: light-dark(#b4e1d7, color-mix(in oklab, #006058 60%, #161619)); }
+.t-orange { --tint: light-dark(#ffc5a5, color-mix(in oklab, #bf430d 50%, #161619)); }
+.t-pink { --tint: light-dark(#ffd7f5, color-mix(in oklab, #801489 55%, #161619)); }
+.t-purple { --tint: light-dark(#e5d5fe, color-mix(in oklab, #6c49cf 50%, #161619)); }
+.t-yellow { --tint: light-dark(#fffaaf, color-mix(in oklab, #8d6b06 55%, #161619)); }
+.t-warm { --tint: light-dark(#fec5c6, color-mix(in oklab, #8c2d4b 55%, #161619)); }
+
+/* While the page scrolls, rows slide under a resting cursor; their hover states wait until it
+   stops (src/lib/scrolling.ts). Only for a mouse: touch has no hover to protect. */
+@media (hover: hover) and (pointer: fine) {
+  :root[data-scrolling] main {
+    pointer-events: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
