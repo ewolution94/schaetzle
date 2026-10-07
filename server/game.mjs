@@ -38,9 +38,10 @@ const SORT_SECONDS = 60;
 const APART = 1.1;
 /** Jokers per player and game. A joker scores the round's maximum without a guess. */
 export const JOKER_CHOICES = [0, 1, 2, 3];
-/** The avatar's parts: 8 patterns and 23 figures (Folio's `tag` emblem; figure 0 is the initial). */
-export const AVATAR_RANGES = [8, 23];
+/** The players' colours; a price tag's first part picks one (in this order: Folio's `tag` palette). */
 export const COLORS = ['mint', 'purple', 'orange', 'blue', 'pink', 'green', 'yellow', 'beige', 'teal', 'plum'];
+/** The avatar's parts: 10 colours, 8 patterns and 23 figures (Folio's `tag` emblem; figure 0 is the initial). */
+export const AVATAR_RANGES = [COLORS.length, 8, 23];
 
 export const LIMITS = {
   rooms: 200,
@@ -151,15 +152,18 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
     const taken = new Set(present(r).map((p) => p.name.toLowerCase()));
     let name = base;
     for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${base} ${n}`;
+    // Without a tag of their own, someone gets a colour nobody in the room has yet.
     const used = new Set(present(r).map((p) => p.color));
-    const color = COLORS.find((c) => !used.has(c)) ?? COLORS[r.players.size % COLORS.length];
+    const free = COLORS.findIndex((c) => !used.has(c));
+    const avatar = cleanAvatar(rawAvatar, free < 0 ? r.players.size % COLORS.length : free);
     const p = {
       id: randomBytes(6).toString('base64url'),
       token: randomBytes(18).toString('base64url'),
       name,
-      color,
-      // The avatar: a price tag in the player's colour, [pattern, figure].
-      avatar: cleanAvatar(rawAvatar),
+      // The player's colour is their tag's: the reveal's confetti and every avatar use it.
+      color: COLORS[avatar[0]],
+      // The avatar: a price tag, [colour, pattern, figure].
+      avatar,
       score: 0,
       // Someone joining mid-game gets the game's allowance too.
       jokers: r.settings.jokers,
@@ -602,6 +606,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
           // Anyone changes their own avatar, at any time.
           if (!isAvatar(body.avatar)) throw new GameError('avatar');
           p.avatar = [...body.avatar];
+          p.color = COLORS[p.avatar[0]];
           touch(r);
           return;
         }
@@ -842,13 +847,13 @@ export function cleanName(raw) {
 }
 
 /**
- * An avatar: Folio's `tag` emblem (development/plans/emblems.md), [pattern, figure] within AVATAR_RANGES.
- * Anything else gets a random pattern with figure 0, the name's initial, so a bad value never blocks
- * a join. (The image has no vendor/, so this checks the ranges itself rather than import Folio's
+ * An avatar: Folio's `tag` emblem (development/plans/emblems.md), [colour, pattern, figure] within
+ * AVATAR_RANGES. Anything else gets the given colour, a random pattern and figure 0, the name's
+ * initial, so a bad value never blocks a join. (The image has no vendor/, so this checks the ranges itself rather than import Folio's
  * cleanEmblem; they match emblem-tag's parts.)
  */
-export function cleanAvatar(raw) {
-  return isAvatar(raw) ? [...raw] : [randomInt(AVATAR_RANGES[0]), 0];
+export function cleanAvatar(raw, colour = randomInt(AVATAR_RANGES[0])) {
+  return isAvatar(raw) ? [...raw] : [colour, randomInt(AVATAR_RANGES[1]), 0];
 }
 
 export function isAvatar(raw) {

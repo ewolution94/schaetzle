@@ -21,14 +21,14 @@ export interface Settings {
   teams: number;
 }
 
-/** A price tag, Folio's `tag` emblem: [pattern 0–7, figure 0–22], figure 0 being the name's initial. */
-export type Avatar = [number, number];
+/** A price tag, Folio's `tag` emblem: [colour 0–9, pattern 0–7, figure 0–22]; figure 0 is the name's initial. */
+export type Avatar = [number, number, number];
 
 export interface Player {
   id: string;
   name: string;
   color: string;
-  /** The avatar: a price tag in their colour. */
+  /** The avatar: a price tag; its colour is `color`. */
   avatar: Avatar;
   score: number;
   online: boolean;

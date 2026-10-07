@@ -34,28 +34,33 @@ test('names are cleaned, capped, and made unique within a room', () => {
   assert.throws(() => games.join(code, { name: '   ' }), (e) => e instanceof GameError && e.code === 'name');
 });
 
-test('an avatar is a price tag, [pattern, figure], picked on joining and changed any time', async () => {
-  assert.deepEqual(AVATAR_RANGES, [8, 23]);
-  for (const ok of [[0, 0], [7, 22], [3, 5]]) assert.deepEqual(cleanAvatar(ok), ok);
-  // Anything else: a random pattern with the name's initial.
-  for (const no of [null, undefined, '3,5', [8, 0], [0, 23], [-1, 0], [1.5, 2], [1, 2, 3], [1], {}]) {
-    const [pattern, figure] = cleanAvatar(no);
+test('an avatar is a price tag, [colour, pattern, figure], and its colour is the player\'s', async () => {
+  assert.deepEqual(AVATAR_RANGES, [10, 8, 23]);
+  for (const ok of [[0, 0, 0], [9, 7, 22], [3, 5, 1]]) assert.deepEqual(cleanAvatar(ok), ok);
+  // Anything else: the colour given (random without one), a random pattern, the name's initial.
+  for (const no of [null, undefined, '3,5,1', [3, 5], [10, 0, 0], [0, 8, 0], [0, 0, 23], [-1, 0, 0], [1.5, 2, 2], [1, 2, 3, 4], {}]) {
+    const [colour, pattern, figure] = cleanAvatar(no, 4);
+    assert.equal(colour, 4, String(no));
     assert.ok(Number.isInteger(pattern) && pattern >= 0 && pattern < 8, String(no));
     assert.equal(figure, 0, String(no));
   }
   const { games } = setup();
-  const { code, token } = games.create({ name: 'Anna', avatar: [6, 3] });
+  const { code, token } = games.create({ name: 'Anna', avatar: [3, 6, 3] });
   games.join(code, { name: 'Ben', avatar: 'a fox' });
   games.join(code, { name: 'Cem' });
+  games.join(code, { name: 'Dora', avatar: [3, 1, 9] });
   const players = games.view(code).players;
-  assert.deepEqual(players[0].avatar, [6, 3]);
-  assert.equal(players[1].avatar[1], 0);
-  assert.equal(players[2].avatar[1], 0);
-  await games.act(code, token, 'avatar', { avatar: [2, 19] });
-  assert.deepEqual(games.view(code).players[0].avatar, [2, 19]);
+  assert.deepEqual(players[0].avatar, [3, 6, 3]);
+  assert.equal(players[0].color, 'blue');
+  // Without a tag, the first colours nobody has yet; a chosen one may repeat.
+  assert.deepEqual(players.map((p) => p.color), ['blue', 'mint', 'purple', 'blue']);
+  assert.deepEqual(players.slice(1, 3).map((p) => p.avatar[2]), [0, 0]);
+  await games.act(code, token, 'avatar', { avatar: [6, 2, 19] });
+  assert.deepEqual(games.view(code).players[0].avatar, [6, 2, 19]);
+  assert.equal(games.view(code).players[0].color, 'yellow');
   // A bad change is refused and the old one stays.
-  await assert.rejects(games.act(code, token, 'avatar', { avatar: [2, 99] }), { code: 'avatar' });
-  assert.deepEqual(games.view(code).players[0].avatar, [2, 19]);
+  await assert.rejects(games.act(code, token, 'avatar', { avatar: [2, 19] }), { code: 'avatar' });
+  assert.deepEqual(games.view(code).players[0].avatar, [6, 2, 19]);
 });
 
 test('a known token gets the same seat back', () => {

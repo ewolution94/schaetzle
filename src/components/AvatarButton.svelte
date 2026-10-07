@@ -1,7 +1,7 @@
 <!--
   Your price tag as a button: it opens Folio's emblem maker (development/plans/emblems.md) in a sheet,
-  with arrows for the pattern and the figure and a dice. Every change counts at once. On the start and
-  join screens, beside the name, and on your own row in the lobby.
+  with arrows for the colour, the pattern and the figure, and a dice. Every change counts at once. On
+  the start and join screens, beside the name, and on your own row in the lobby.
 -->
 <script lang="ts">
   import type { Avatar as Value, Player } from '../lib/api';
@@ -12,7 +12,7 @@
     player,
     size = 52,
     onpick,
-  }: { player: Pick<Player, 'name' | 'color' | 'avatar'>; size?: number; onpick: (avatar: Value) => void } = $props();
+  }: { player: Pick<Player, 'name' | 'avatar'>; size?: number; onpick: (avatar: Value) => void } = $props();
 
   let open = $state(false);
   // The maker stays until the sheet's `close` event, after its exit animation: dropped as closing
@@ -35,7 +35,7 @@
   }
 
   function change(value: number[]) {
-    if (value.length === 2 && value.join() !== player.avatar.join()) onpick([value[0], value[1]]);
+    if (value.length === 3 && value.join() !== player.avatar.join()) onpick([value[0], value[1], value[2]]);
   }
 </script>
 
@@ -58,7 +58,7 @@
 <ewo-sheet {open} label={t('avatar')} oncancel={close} onclose={closed}>
   <span slot="heading">{t('avatar')}</span>
   {#if open || shown}
-    <div class="body {player.color ? `c-${player.color}` : 'plain'}">
+    <div class="body">
       <ewo-emblem-maker theme="tag" value={player.avatar} initial={player.name} onchange={(e) => change(e.detail.value)}></ewo-emblem-maker>
       <button class="btn primary block" type="button" onclick={close}>{t('avatarDone')}</button>
     </div>
@@ -101,16 +101,12 @@
     fill: #ffffff;
   }
 
-  /* The big tag in your colour (grey before joining), its hole showing the stage. */
+  /* The big tag's hole shows the stage. */
   .body {
     display: grid;
     gap: 18px;
     padding-bottom: 8px;
-    --ewo-emblem-1: var(--pc);
     --ewo-emblem-paper: var(--surface-2);
-  }
-  .body.plain {
-    --ewo-emblem-1: #d8d6d0;
   }
   ewo-emblem-maker {
     --ewo-emblem-maker-size: 200px;

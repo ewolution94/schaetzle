@@ -67,7 +67,7 @@
       <label class="label" for="join-name">{t('yourName')}</label>
       <div class="you">
         <AvatarButton
-          player={{ name, color: '', avatar }}
+          player={{ name, avatar }}
           onpick={(next) => {
             avatar = next;
             saveAvatar(next);

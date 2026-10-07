@@ -27,18 +27,18 @@ function write(key: string, value: string | null) {
 
 export const savedName = () => read(NAME) ?? '';
 export const saveName = (name: string) => write(NAME, name.trim() || null);
-/** The avatar's parts: patterns and figures (server/game.mjs → AVATAR_RANGES, Folio's `tag` emblem). */
-const RANGES = [8, 23];
+/** The avatar's parts: colours, patterns and figures (server/game.mjs → AVATAR_RANGES, Folio's `tag` emblem). */
+const RANGES = [10, 8, 23];
 
-/** The price tag this device plays under; the first time, a random pattern with the name's initial. */
+/** The price tag this device plays under; the first time, a random colour and pattern with the name's initial. */
 export function savedAvatar(): Avatar {
   try {
     const value = JSON.parse(read(AVATAR) ?? 'null');
-    if (Array.isArray(value) && value.length === 2 && value.every((v, i) => Number.isInteger(v) && v >= 0 && v < RANGES[i])) return [value[0], value[1]];
+    if (Array.isArray(value) && value.length === 3 && value.every((v, i) => Number.isInteger(v) && v >= 0 && v < RANGES[i])) return [value[0], value[1], value[2]];
   } catch {
     // a new one
   }
-  return [Math.floor(Math.random() * RANGES[0]), 0];
+  return [Math.floor(Math.random() * RANGES[0]), Math.floor(Math.random() * RANGES[1]), 0];
 }
 export const saveAvatar = (avatar: Avatar) => write(AVATAR, JSON.stringify(avatar));
 
