@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { api, ApiError, type Phase, type Seat } from '../lib/api';
   import { errorText, t } from '../lib/i18n.svelte';
-  import { saveEmoji, savedEmoji, savedName } from '../lib/session';
+  import { saveAvatar, savedAvatar, savedName } from '../lib/session';
   import AvatarButton from './AvatarButton.svelte';
 
   let { code, onjoin, onback }: { code: string; onjoin: (seat: Seat, name: string) => void; onback: () => void } = $props();
@@ -10,7 +10,7 @@
   let info: { phase: Phase; players: number; full: boolean } | null = $state(null);
   let missing = $state(false);
   let name = $state(savedName());
-  let emoji = $state(savedEmoji());
+  let avatar = $state(savedAvatar());
   let busy = $state(false);
   let error = $state('');
   let input: HTMLInputElement | undefined = $state();
@@ -38,7 +38,8 @@
     busy = true;
     error = '';
     try {
-      onjoin(await api.join(code, name.trim(), emoji), name.trim());
+      saveAvatar(avatar);
+      onjoin(await api.join(code, name.trim(), avatar), name.trim());
     } catch (e) {
       const reason = e instanceof ApiError ? e.code : 'other';
       if (reason === 'no-room') missing = true;
@@ -66,10 +67,10 @@
       <label class="label" for="join-name">{t('yourName')}</label>
       <div class="you">
         <AvatarButton
-          player={{ name, color: '', emoji }}
+          player={{ name, color: '', avatar }}
           onpick={(next) => {
-            emoji = next;
-            saveEmoji(next);
+            avatar = next;
+            saveAvatar(next);
           }}
         />
         <input

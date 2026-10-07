@@ -1,11 +1,10 @@
 <!--
-  Your avatar as a button: it opens a sheet of emoji (lib/avatars.ts), and a tap on one picks it and
-  closes the sheet. The first choice is no emoji at all, your name's initial. On the start and join
-  screens, beside the name, and on your own row in the lobby.
+  Your price tag as a button: it opens Folio's emblem maker (development/plans/emblems.md) in a sheet,
+  with arrows for the pattern and the figure and a dice. Every change counts at once. On the start and
+  join screens, beside the name, and on your own row in the lobby.
 -->
 <script lang="ts">
-  import type { Player } from '../lib/api';
-  import { AVATARS } from '../lib/avatars';
+  import type { Avatar as Value, Player } from '../lib/api';
   import { t } from '../lib/i18n.svelte';
   import Avatar from './Avatar.svelte';
 
@@ -13,18 +12,16 @@
     player,
     size = 52,
     onpick,
-  }: { player: Pick<Player, 'name' | 'color' | 'emoji'>; size?: number; onpick: (emoji: string | null) => void } = $props();
+  }: { player: Pick<Player, 'name' | 'color' | 'avatar'>; size?: number; onpick: (avatar: Value) => void } = $props();
 
   let open = $state(false);
-  // The emoji stay until the sheet's `close` event, after its exit animation: dropped as closing
+  // The maker stays until the sheet's `close` event, after its exit animation: dropped as closing
   // starts, the sheet slid out as a header on its own.
   let shown = $state(false);
   $effect(() => {
     if (open) shown = true;
   });
   let button: HTMLButtonElement | undefined = $state();
-
-  const initial = $derived([...new Intl.Segmenter('de', { granularity: 'grapheme' }).segment(player.name.trim())][0]?.segment.toUpperCase() ?? '?');
 
   function close() {
     open = false;
@@ -37,9 +34,8 @@
     if (!open) button?.focus();
   }
 
-  function pick(emoji: string | null) {
-    if (emoji !== player.emoji) onpick(emoji);
-    close();
+  function change(value: number[]) {
+    if (value.length === 2 && value.join() !== player.avatar.join()) onpick([value[0], value[1]]);
   }
 </script>
 
@@ -62,32 +58,9 @@
 <ewo-sheet {open} label={t('avatar')} oncancel={close} onclose={closed}>
   <span slot="heading">{t('avatar')}</span>
   {#if open || shown}
-    <div class="groups {player.color ? `c-${player.color}` : ''}">
-      <section>
-        <h3 class="label">{t('avatarInitial')}</h3>
-        <div class="grid">
-          <button
-            type="button"
-            class="cell initial"
-            class:on={!player.emoji}
-            aria-pressed={!player.emoji}
-            aria-label={t('avatarInitial')}
-            onclick={() => pick(null)}>{initial}</button
-          >
-        </div>
-      </section>
-      {#each AVATARS as group (group.label)}
-        <section>
-          <h3 class="label">{t(group.label)}</h3>
-          <div class="grid">
-            {#each group.emoji as emoji (emoji)}
-              <button type="button" class="cell" class:on={player.emoji === emoji} aria-pressed={player.emoji === emoji} onclick={() => pick(emoji)}
-                >{emoji}</button
-              >
-            {/each}
-          </div>
-        </section>
-      {/each}
+    <div class="body {player.color ? `c-${player.color}` : 'plain'}">
+      <ewo-emblem-maker theme="tag" value={player.avatar} initial={player.name} onchange={(e) => change(e.detail.value)}></ewo-emblem-maker>
+      <button class="btn primary block" type="button" onclick={close}>{t('avatarDone')}</button>
     </div>
   {/if}
 </ewo-sheet>
@@ -111,7 +84,7 @@
     outline: 2px solid var(--red-text);
     outline-offset: 2px;
   }
-  /* The pencil says the avatar can be changed. */
+  /* The pencil says the tag can be changed. */
   .edit {
     position: absolute;
     right: -3px;
@@ -128,57 +101,25 @@
     fill: #ffffff;
   }
 
-  .groups {
-    display: flex;
-    flex-direction: column;
+  /* The big tag in your colour (grey before joining), its hole showing the stage. */
+  .body {
+    display: grid;
     gap: 18px;
     padding-bottom: 8px;
+    --ewo-emblem-1: var(--pc);
+    --ewo-emblem-paper: var(--surface-2);
   }
-  h3 {
-    margin: 0 0 6px;
+  .body.plain {
+    --ewo-emblem-1: #d8d6d0;
   }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
-    gap: 4px;
+  ewo-emblem-maker {
+    --ewo-emblem-maker-size: 200px;
   }
-  .cell {
-    display: grid;
-    place-items: center;
-    aspect-ratio: 1;
-    padding: 0;
-    border: 0;
-    border-radius: 14px;
-    background: none;
-    font: 30px / 1 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-    -webkit-tap-highlight-color: transparent;
-    transition:
-      background-color var(--ewo-dur-1),
-      scale var(--ewo-dur-1);
+  ewo-emblem-maker::part(stage) {
+    background: var(--surface-2);
   }
-  .cell.initial {
-    font: 700 22px / 1 var(--ewo-sans);
-    color: var(--ewo-fg);
-  }
-  @media (hover: hover) {
-    .cell:hover {
-      background: var(--surface-2);
-    }
-  }
-  .cell:active {
-    scale: 0.9;
-  }
-  .cell:focus-visible {
-    outline: 2px solid var(--red-text);
-    outline-offset: -2px;
-  }
-  /* The one you have, on your colour once you have one. */
-  .cell.on,
-  .cell.on:hover {
-    background: var(--pc, var(--surface-2));
-    box-shadow: inset 0 0 0 2px var(--ewo-fg);
-  }
-  .groups[class*='c-'] .cell.initial.on {
-    color: var(--otto-ink);
+  ewo-emblem-maker::part(tag) {
+    background: var(--red);
+    color: #ffffff;
   }
 </style>

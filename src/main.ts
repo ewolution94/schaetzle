@@ -7,6 +7,8 @@ import '../vendor/ewo/elements/sheet.js';
 import '../vendor/ewo/elements/segmented.js';
 import '../vendor/ewo/elements/switch.js';
 import '../vendor/ewo/elements/badge.js';
+import '../vendor/ewo/elements/emblem.js';
+import '../vendor/ewo/elements/emblem-maker.js';
 
 import { mount } from 'svelte';
 import App from './App.svelte';

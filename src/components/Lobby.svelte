@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { Mode, Player, PriceRange, Settings, Theme, View } from '../lib/api';
+  import type { Avatar as Value, Mode, Player, PriceRange, Settings, Theme, View } from '../lib/api';
   import { t, type Key } from '../lib/i18n.svelte';
-  import { saveEmoji } from '../lib/session';
+  import { saveAvatar } from '../lib/session';
   import Avatar from './Avatar.svelte';
   import AvatarButton from './AvatarButton.svelte';
   import Qr from './Qr.svelte';
@@ -58,17 +58,26 @@
     if (left.length !== keys.length) pending = Object.fromEntries(left.map((key) => [key, pending[key]]));
   });
 
-  // Your own avatar changes the moment you pick one (and this device keeps it for the next game);
+  // Your own tag changes with every tap in the maker (and this device keeps it for the next game).
+  // Taps go to the server one at a time, the newest last, so quick ones can't arrive out of order;
   // the server's view takes over once it agrees, and a refusal puts the old one back.
-  let myEmoji: string | null | undefined = $state(undefined);
+  let myAvatar: Value | undefined = $state.raw(undefined);
+  let sendingAvatar = false;
   $effect(() => {
-    if (myEmoji !== undefined && me.emoji === myEmoji) myEmoji = undefined;
+    if (myAvatar && me.avatar.join() === myAvatar.join()) myAvatar = undefined;
   });
 
-  async function pickEmoji(emoji: string | null) {
-    myEmoji = emoji;
-    saveEmoji(emoji);
-    if (!(await act('avatar', { emoji }))) myEmoji = undefined;
+  async function pickAvatar(avatar: Value) {
+    myAvatar = avatar;
+    saveAvatar(avatar);
+    if (sendingAvatar) return;
+    sendingAvatar = true;
+    let sent: Value | undefined;
+    while (myAvatar && myAvatar !== sent) {
+      sent = myAvatar;
+      if (!(await act('avatar', { avatar: sent }))) myAvatar = undefined;
+    }
+    sendingAvatar = false;
   }
 
   /** The theme pills toggle freely, any number of them; a game needs at least one. */
@@ -159,7 +168,7 @@
   {#snippet person(player: Player)}
     <li class:offline={!player.online}>
       {#if player.id === me.id}
-        <AvatarButton player={myEmoji === undefined ? player : { ...player, emoji: myEmoji }} size={34} onpick={pickEmoji} />
+        <AvatarButton player={myAvatar ? { ...player, avatar: myAvatar } : player} size={34} onpick={pickAvatar} />
       {:else}
         <Avatar {player} size={34} dim={!player.online} />
       {/if}

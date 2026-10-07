@@ -38,6 +38,8 @@ const SORT_SECONDS = 60;
 const APART = 1.1;
 /** Jokers per player and game. A joker scores the round's maximum without a guess. */
 export const JOKER_CHOICES = [0, 1, 2, 3];
+/** The avatar's parts: 8 patterns and 23 figures (Folio's `tag` emblem; figure 0 is the initial). */
+export const AVATAR_RANGES = [8, 23];
 export const COLORS = ['mint', 'purple', 'orange', 'blue', 'pink', 'green', 'yellow', 'beige', 'teal', 'plum'];
 
 export const LIMITS = {
@@ -142,7 +144,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
     return [...r.players.values()].filter((p) => !p.left);
   }
 
-  function addPlayer(r, rawName, rawEmoji) {
+  function addPlayer(r, rawName, rawAvatar) {
     if (present(r).length >= LIMITS.players) throw new GameError('room-full', 409);
     const base = cleanName(rawName);
     if (!base) throw new GameError('name');
@@ -156,8 +158,8 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
       token: randomBytes(18).toString('base64url'),
       name,
       color,
-      // The avatar: an emoji on the player's colour, or null for the name's initial.
-      emoji: cleanEmoji(rawEmoji),
+      // The avatar: a price tag in the player's colour, [pattern, figure].
+      avatar: cleanAvatar(rawAvatar),
       score: 0,
       // Someone joining mid-game gets the game's allowance too.
       jokers: r.settings.jokers,
@@ -215,7 +217,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         id: p.id,
         name: p.name,
         color: p.color,
-        emoji: p.emoji,
+        avatar: p.avatar,
         score: p.score,
         online: p.online > 0,
         jokers: p.jokers,
@@ -407,8 +409,8 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
       return rooms.size;
     },
 
-    /** @param {{ name: unknown, emoji?: unknown }} body */
-    create({ name, emoji }) {
+    /** @param {{ name: unknown, avatar?: unknown }} body */
+    create({ name, avatar }) {
       if (!cleanName(name)) throw new GameError('name');
       if (rooms.size >= LIMITS.rooms || !within(created, 10 * 60_000, LIMITS.roomsPer10Min)) throw new GameError('busy', 429);
       const code = newCode();
@@ -435,7 +437,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         subscribers: new Set(),
       };
       rooms.set(code, r);
-      const p = addPlayer(r, name, emoji);
+      const p = addPlayer(r, name, avatar);
       r.host = p.id;
       return { code, player: p.id, token: p.token };
     },
@@ -451,9 +453,9 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
      * Joins, or comes back: a known token gets the same seat (and score) again. A token alone that
      * no longer fits (kicked, or dropped from the lobby) is refused, so a reload doesn't sneak a
      * removed player back in under a new seat; they join again with their name.
-     * @param {{ name?: unknown, emoji?: unknown, token?: unknown }} body
+     * @param {{ name?: unknown, avatar?: unknown, token?: unknown }} body
      */
-    join(code, { name, emoji, token }) {
+    join(code, { name, avatar, token }) {
       const r = room(code);
       if (typeof token === 'string' && token) {
         for (const p of r.players.values()) {
@@ -461,7 +463,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         }
         if (!cleanName(name)) throw new GameError('no-player', 401);
       }
-      const p = addPlayer(r, name, emoji);
+      const p = addPlayer(r, name, avatar);
       touch(r);
       return { code: r.code, player: p.id, token: p.token };
     },
@@ -597,8 +599,9 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
           return;
         }
         case 'avatar': {
-          // Anyone changes their own avatar, at any time; anything but one emoji means the initial.
-          p.emoji = cleanEmoji(body.emoji);
+          // Anyone changes their own avatar, at any time.
+          if (!isAvatar(body.avatar)) throw new GameError('avatar');
+          p.avatar = [...body.avatar];
           touch(r);
           return;
         }
@@ -839,17 +842,17 @@ export function cleanName(raw) {
 }
 
 /**
- * An avatar: exactly one emoji (a pictograph with its modifiers and joiners, or a flag), else null.
- * The client offers a list, but any single emoji is fine here.
+ * An avatar: Folio's `tag` emblem (development/plans/emblems.md), [pattern, figure] within AVATAR_RANGES.
+ * Anything else gets a random pattern with figure 0, the name's initial, so a bad value never blocks
+ * a join. (The image has no vendor/, so this checks the ranges itself rather than import Folio's
+ * cleanEmblem; they match emblem-tag's parts.)
  */
-export function cleanEmoji(raw) {
-  if (typeof raw !== 'string' || raw.length > 32) return null;
-  const text = raw.normalize('NFC').trim();
-  const graphemes = [...new Intl.Segmenter('de', { granularity: 'grapheme' }).segment(text)];
-  if (graphemes.length !== 1) return null;
-  const pictograph = /^\p{Extended_Pictographic}[\p{Extended_Pictographic}\p{Emoji_Modifier}\u200D\uFE0F\u20E3\u{E0020}-\u{E007F}]*$/u;
-  const flag = /^\p{Regional_Indicator}{2}$/u;
-  return pictograph.test(text) || flag.test(text) ? text : null;
+export function cleanAvatar(raw) {
+  return isAvatar(raw) ? [...raw] : [randomInt(AVATAR_RANGES[0]), 0];
+}
+
+export function isAvatar(raw) {
+  return Array.isArray(raw) && raw.length === AVATAR_RANGES.length && raw.every((v, i) => Number.isInteger(v) && v >= 0 && v < AVATAR_RANGES[i]);
 }
 
 /** The settings with a host's changes applied; anything invalid is ignored. */

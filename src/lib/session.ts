@@ -2,10 +2,10 @@
 // the phone locking mid-game, puts you back in the same seat with your score). Storage can be
 // blocked; then nothing is remembered and everything still works.
 
-import type { Seat } from './api';
+import type { Avatar, Seat } from './api';
 
 const NAME = 'schaetzle:name';
-const EMOJI = 'schaetzle:emoji';
+const AVATAR = 'schaetzle:avatar';
 const SEAT = 'schaetzle:seat:';
 
 function read(key: string) {
@@ -27,9 +27,23 @@ function write(key: string, value: string | null) {
 
 export const savedName = () => read(NAME) ?? '';
 export const saveName = (name: string) => write(NAME, name.trim() || null);
-/** The avatar's emoji, or null for the name's initial. */
-export const savedEmoji = () => read(EMOJI) || null;
-export const saveEmoji = (emoji: string | null) => write(EMOJI, emoji);
+/** The avatar's parts: patterns and figures (server/game.mjs → AVATAR_RANGES, Folio's `tag` emblem). */
+const RANGES = [8, 23];
+
+/** The price tag this device plays under; the first time, a random pattern with the name's initial. */
+export function savedAvatar(): Avatar {
+  try {
+    const value = JSON.parse(read(AVATAR) ?? 'null');
+    if (Array.isArray(value) && value.length === 2 && value.every((v, i) => Number.isInteger(v) && v >= 0 && v < RANGES[i])) return [value[0], value[1]];
+  } catch {
+    // a new one
+  }
+  return [Math.floor(Math.random() * RANGES[0]), 0];
+}
+export const saveAvatar = (avatar: Avatar) => write(AVATAR, JSON.stringify(avatar));
+
+// The emoji avatars' key, from before the price tags (2026-10-07).
+write('schaetzle:emoji', null);
 
 export function savedSeat(code: string): Seat | null {
   try {

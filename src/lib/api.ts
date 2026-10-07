@@ -21,12 +21,15 @@ export interface Settings {
   teams: number;
 }
 
+/** A price tag, Folio's `tag` emblem: [pattern 0–7, figure 0–22], figure 0 being the name's initial. */
+export type Avatar = [number, number];
+
 export interface Player {
   id: string;
   name: string;
   color: string;
-  /** The avatar: an emoji on their colour, or null for their name's initial. */
-  emoji: string | null;
+  /** The avatar: a price tag in their colour. */
+  avatar: Avatar;
   score: number;
   online: boolean;
   /** Guessed, or played a joker (the two look the same until the reveal). */
@@ -180,9 +183,9 @@ const post = (body: unknown, token?: string): RequestInit => ({
 
 export const api = {
   config: () => request<Config>('/api/config'),
-  create: (name: string, emoji: string | null) => request<Seat>('/api/rooms', post({ name, emoji })),
+  create: (name: string, avatar: Avatar) => request<Seat>('/api/rooms', post({ name, avatar })),
   info: (code: string) => request<{ code: string; phase: Phase; players: number; full: boolean; demo: boolean }>(`/api/rooms/${code}`),
-  join: (code: string, name: string, emoji: string | null, token?: string) => request<Seat>(`/api/rooms/${code}/join`, post({ name, emoji, token })),
+  join: (code: string, name: string, avatar: Avatar | null, token?: string) => request<Seat>(`/api/rooms/${code}/join`, post({ name, avatar, token })),
   act: (seat: Seat, action: string, body?: unknown) => request<void>(`/api/rooms/${seat.code}/${action}`, post(body, seat.token)),
 };
 

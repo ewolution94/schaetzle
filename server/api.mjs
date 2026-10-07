@@ -1,9 +1,9 @@
 // The game over HTTP: JSON for moves, Server-Sent Events for the live room.
 //
 //   GET  /api/config                     what the start screen needs (demo or live items)
-//   POST /api/rooms            {name, emoji?}   a new room; you're its host → {code, player, token}
+//   POST /api/rooms            {name, avatar?}   a new room; you're its host → {code, player, token}
 //   GET  /api/rooms/:code                does it exist, is it full → {code, phase, players, full}
-//   POST /api/rooms/:code/join {name, emoji?, token?}   a seat (the same one again with your token)
+//   POST /api/rooms/:code/join {name, avatar?, token?}   a seat (the same one again with your token)
 //   GET  /api/rooms/:code/events?p=<id>  the room's view, now and after every change (SSE)
 //   POST /api/rooms/:code/<action>       settings, start, guess, joker, skip, next, rematch, team, shuffle,
 //                                        kick, leave, avatar
@@ -122,7 +122,7 @@ export function createApi({ games, demo }) {
       if (pathname === '/api/rooms') {
         if (req.method !== 'POST') throw new GameError('method', 405);
         const body = await readJson(req);
-        json(res, 201, games.create({ name: body.name, emoji: body.emoji }));
+        json(res, 201, games.create({ name: body.name, avatar: body.avatar }));
         return true;
       }
 
@@ -147,7 +147,7 @@ export function createApi({ games, demo }) {
       if (req.method !== 'POST') throw new GameError('method', 405);
       const body = await readJson(req);
       if (action === 'join') {
-        json(res, 200, games.join(code, { name: body.name, emoji: body.emoji, token: body.token }));
+        json(res, 200, games.join(code, { name: body.name, avatar: body.avatar, token: body.token }));
         return true;
       }
       await games.act(code, req.headers['x-schaetzle-token'], action, body);

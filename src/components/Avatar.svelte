@@ -1,20 +1,20 @@
 <script lang="ts">
   import type { Player } from '../lib/api';
 
-  // Without a colour (picking one before joining, when the server hasn't handed one out yet) it's
-  // drawn plain, on the card's grey.
+  // A player's price tag: Folio's `tag` emblem (development/plans/emblems.md) in the colour the room
+  // gave them, with the pattern and figure they chose. Without a colour (choosing one before joining,
+  // when the server hasn't handed one out yet) it's a plain grey tag.
   let {
     player,
     size = 32,
     check = false,
     dim = false,
-  }: { player: Pick<Player, 'name' | 'color' | 'emoji'>; size?: number; check?: boolean; dim?: boolean } = $props();
-
-  const initial = $derived([...new Intl.Segmenter('de', { granularity: 'grapheme' }).segment(player.name.trim())][0]?.segment.toUpperCase() ?? '?');
+  }: { player: Pick<Player, 'name' | 'color' | 'avatar'>; size?: number; check?: boolean; dim?: boolean } = $props();
 </script>
 
 <span class="avatar {player.color ? `c-${player.color}` : 'plain'}" class:dim style:--size="{size}px" aria-hidden="true">
-  {#if player.emoji}<span class="emoji">{player.emoji}</span>{:else}{initial}{/if}
+  <!-- Drawn a tenth larger than the box: tilted, a tag looks smaller than a circle the same size. -->
+  <ewo-emblem theme="tag" value={player.avatar} initial={player.name} size={Math.round(size * 1.1)}></ewo-emblem>
   {#if check}
     <svg class="check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" /><path d="M4.6 8.3l2.2 2.2 4.6-4.8" /></svg>
   {/if}
@@ -28,19 +28,16 @@
     flex: none;
     width: var(--size);
     height: var(--size);
-    border-radius: 50%;
-    background: var(--pc);
-    color: var(--otto-ink);
-    font: 700 calc(var(--size) * 0.44) / 1 var(--ewo-sans);
+    /* The tag in the player's colour; its hole shows the card it sits on. */
+    --ewo-emblem-1: var(--pc);
+    --ewo-emblem-paper: var(--surface);
     transition: opacity var(--ewo-dur-2);
   }
   .plain {
-    background: var(--surface-2);
-    color: var(--ewo-fg);
-    box-shadow: inset 0 0 0 1px var(--ewo-line-strong);
+    --ewo-emblem-1: #d8d6d0;
   }
-  .emoji {
-    font: calc(var(--size) * 0.56) / 1 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  ewo-emblem {
+    margin: calc(var(--size) * -0.05);
   }
   .dim {
     opacity: 0.4;

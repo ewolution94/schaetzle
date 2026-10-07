@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api, ApiError, CODE, type Seat } from '../lib/api';
   import { errorText, t } from '../lib/i18n.svelte';
-  import { saveEmoji, savedEmoji, savedName } from '../lib/session';
+  import { saveAvatar, savedAvatar, savedName } from '../lib/session';
   import AvatarButton from './AvatarButton.svelte';
   import PriceTag from './PriceTag.svelte';
 
@@ -12,7 +12,7 @@
   }: { demo: boolean; oncreate: (seat: Seat, name: string) => void; onjoin: (code: string) => void } = $props();
 
   let name = $state(savedName());
-  let emoji = $state(savedEmoji());
+  let avatar = $state(savedAvatar());
   let code = $state('');
   let busy = $state(false);
   let error = $state('');
@@ -29,7 +29,9 @@
     busy = true;
     error = '';
     try {
-      oncreate(await api.create(name.trim(), emoji), name.trim());
+      // The first tag this device plays under is kept, so the next game starts with it too.
+      saveAvatar(avatar);
+      oncreate(await api.create(name.trim(), avatar), name.trim());
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
     } finally {
@@ -58,10 +60,10 @@
     <label class="label" for="name">{t('yourName')}</label>
     <div class="you">
       <AvatarButton
-        player={{ name, color: '', emoji }}
+        player={{ name, color: '', avatar }}
         onpick={(next) => {
-          emoji = next;
-          saveEmoji(next);
+          avatar = next;
+          saveAvatar(next);
         }}
       />
       <input

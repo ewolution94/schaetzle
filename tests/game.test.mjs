@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanEmoji, cleanName, mergeSettings, DEFAULT_SETTINGS, CODE, GameError } from '../server/game.mjs';
+import { AVATAR_RANGES, cleanAvatar, cleanName, mergeSettings, DEFAULT_SETTINGS, CODE, GameError } from '../server/game.mjs';
 import { createMockSource, MOCK_ITEMS } from '../server/items/mock.mjs';
 import { seeded, setup, threePlayers, watch } from './helpers.mjs';
 import { PRICES, THEME_KEYS } from '../server/items/themes.mjs';
@@ -34,21 +34,28 @@ test('names are cleaned, capped, and made unique within a room', () => {
   assert.throws(() => games.join(code, { name: '   ' }), (e) => e instanceof GameError && e.code === 'name');
 });
 
-test('an avatar is one emoji, picked on joining and changed any time', async () => {
-  for (const ok of ['🦊', '❤️', '👍🏽', '🧑‍🚀', '👩‍👩‍👧‍👦', '🇩🇪', '🏴󠁧󠁢󠁳󠁣󠁴󠁿']) assert.equal(cleanEmoji(ok), ok, ok);
-  for (const no of ['', 'A', '🦊🐼', '🦊 ', 'a🦊', '1', '🇩', 42, null, undefined, '🦊'.repeat(20)]) {
-    assert.equal(cleanEmoji(no), no === '🦊 ' ? '🦊' : null, String(no));
+test('an avatar is a price tag, [pattern, figure], picked on joining and changed any time', async () => {
+  assert.deepEqual(AVATAR_RANGES, [8, 23]);
+  for (const ok of [[0, 0], [7, 22], [3, 5]]) assert.deepEqual(cleanAvatar(ok), ok);
+  // Anything else: a random pattern with the name's initial.
+  for (const no of [null, undefined, '3,5', [8, 0], [0, 23], [-1, 0], [1.5, 2], [1, 2, 3], [1], {}]) {
+    const [pattern, figure] = cleanAvatar(no);
+    assert.ok(Number.isInteger(pattern) && pattern >= 0 && pattern < 8, String(no));
+    assert.equal(figure, 0, String(no));
   }
   const { games } = setup();
-  const { code, token } = games.create({ name: 'Anna', emoji: '🦊' });
-  games.join(code, { name: 'Ben', emoji: 'not one' });
+  const { code, token } = games.create({ name: 'Anna', avatar: [6, 3] });
+  games.join(code, { name: 'Ben', avatar: 'a fox' });
   games.join(code, { name: 'Cem' });
-  assert.deepEqual(games.view(code).players.map((p) => p.emoji), ['🦊', null, null]);
-  await games.act(code, token, 'avatar', { emoji: '🐙' });
-  assert.equal(games.view(code).players[0].emoji, '🐙');
-  // Anything else goes back to the initial.
-  await games.act(code, token, 'avatar', {});
-  assert.equal(games.view(code).players[0].emoji, null);
+  const players = games.view(code).players;
+  assert.deepEqual(players[0].avatar, [6, 3]);
+  assert.equal(players[1].avatar[1], 0);
+  assert.equal(players[2].avatar[1], 0);
+  await games.act(code, token, 'avatar', { avatar: [2, 19] });
+  assert.deepEqual(games.view(code).players[0].avatar, [2, 19]);
+  // A bad change is refused and the old one stays.
+  await assert.rejects(games.act(code, token, 'avatar', { avatar: [2, 99] }), { code: 'avatar' });
+  assert.deepEqual(games.view(code).players[0].avatar, [2, 19]);
 });
 
 test('a known token gets the same seat back', () => {
