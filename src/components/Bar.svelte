@@ -1,10 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { t } from '../lib/i18n.svelte';
+  import Settings from './Settings.svelte';
 
   let { code }: { code: string | null } = $props();
 
   let scrolled = $state(false);
+  let settingsOpen = $state(false);
+  let button: HTMLElement | undefined = $state();
+
+  function closeSettings() {
+    settingsOpen = false;
+    // Focus goes back where it came from.
+    button?.focus();
+  }
   onMount(() => {
     const check = () => (scrolled = scrollY > 8);
     check();
@@ -22,9 +31,13 @@
     {#if code}
       <span class="code" aria-label="{t('code')} {code}">{code}</span>
     {/if}
-    <ewo-theme-toggle label-light={t('toLight')} label-dark={t('toDark')}></ewo-theme-toggle>
+    <!-- A real <button> sits inside the element: Enter and Space reach this handler as a click. -->
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <ewo-settings-button bind:this={button} onclick={() => (settingsOpen = true)}></ewo-settings-button>
   </div>
 </header>
+
+<Settings open={settingsOpen} onclose={closeSettings} />
 
 <style>
   .bar {

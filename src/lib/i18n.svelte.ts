@@ -1,32 +1,52 @@
-// German and English, following the browser until the switch in the footer is used. The choice
-// is kept under `ewo:lang` (the family's key); public/boot.js applies it before first paint.
-// Product titles stay as eBay has them (German): they're the listing's own words.
+// German and English. The choice lives in Settings (General → Language): System follows the
+// browser's languages, Deutsch or English pins one. It's kept under `ewo:lang` (the family's key;
+// System removes it), and public/boot.js applies it before first paint. Product titles stay as eBay
+// has them (German): they're the listing's own words.
 
 export type Lang = 'de' | 'en';
+export type LangChoice = Lang | 'system';
 
 const KEY = 'ewo:lang';
 
-function initial(): Lang {
+function storedChoice(): LangChoice {
   try {
     const stored = localStorage.getItem(KEY);
     if (stored === 'en' || stored === 'de') return stored;
   } catch {
     // storage blocked: follow the browser
   }
-  return navigator.language?.toLowerCase().startsWith('de') ? 'de' : 'en';
+  return 'system';
 }
 
-export const i18n = $state({ lang: initial() });
+/** The first of the browser's languages the game speaks, English otherwise (as public/boot.js). */
+export function systemLang(): Lang {
+  for (const tag of navigator.languages?.length ? navigator.languages : [navigator.language]) {
+    const base = tag?.toLowerCase().slice(0, 2);
+    if (base === 'de' || base === 'en') return base;
+  }
+  return 'en';
+}
 
-export function setLang(lang: Lang) {
-  i18n.lang = lang;
-  document.documentElement.lang = lang;
+const choice = storedChoice();
+export const i18n = $state({ choice, lang: choice === 'system' ? systemLang() : choice });
+
+/** Stores a choice ('system' removes it) and shows the page in that language. */
+export function setLanguage(next: LangChoice) {
+  i18n.choice = next;
+  i18n.lang = next === 'system' ? systemLang() : next;
+  document.documentElement.lang = i18n.lang;
   try {
-    localStorage.setItem(KEY, lang);
+    if (next === 'system') localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, next);
   } catch {
     // not kept, still applied
   }
 }
+
+// The browser's own language changing applies at once while the choice is System.
+addEventListener('languagechange', () => {
+  if (i18n.choice === 'system') setLanguage('system');
+});
 
 const STRINGS = {
   de: {
@@ -207,8 +227,7 @@ const STRINGS = {
     // footer
     allApps: 'Alle Apps',
     language: 'Sprache',
-    toLight: 'Helles Design',
-    toDark: 'Dunkles Design',
+    general: 'Allgemein',
   },
   en: {
     yourName: 'Your name',
@@ -375,8 +394,7 @@ const STRINGS = {
     home: 'Back to start',
     allApps: 'All apps',
     language: 'Language',
-    toLight: 'Light theme',
-    toDark: 'Dark theme',
+    general: 'General',
   },
 } satisfies Record<Lang, Record<string, string>>;
 

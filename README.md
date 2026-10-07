@@ -53,8 +53,9 @@ spirit of [guess-the-price.net](https://guess-the-price.net/). Live at
   price)|)`, at least 0. Too high and too low by the same factor score the same; half or double the
   price scores nothing; 10 % off scores about 850. Within 2 % is a "Bullseye". Speed doesn't count.
   The round's red highlight and the recap's "closest" go to the best real guess, never a joker.
-- **German and English**, following the browser until you switch in the footer; light and dark
-  follow the system until you use the toggle. Installs to a home screen.
+- **Settings** (the sliders button in the bar) hold General, the same in every ewolution app:
+  Language (System, Deutsch, English) and Theme (System, Light, Dark), both following the system
+  until picked; a change fades in under a short blur. Installs to a home screen.
 
 ## How it works
 
