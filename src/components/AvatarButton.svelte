@@ -16,6 +16,12 @@
   }: { player: Pick<Player, 'name' | 'color' | 'emoji'>; size?: number; onpick: (emoji: string | null) => void } = $props();
 
   let open = $state(false);
+  // The emoji stay until the sheet's `close` event, after its exit animation: dropped as closing
+  // starts, the sheet slid out as a header on its own.
+  let shown = $state(false);
+  $effect(() => {
+    if (open) shown = true;
+  });
   let button: HTMLButtonElement | undefined = $state();
 
   const initial = $derived([...new Intl.Segmenter('de', { granularity: 'grapheme' }).segment(player.name.trim())][0]?.segment.toUpperCase() ?? '?');
@@ -24,6 +30,11 @@
     open = false;
     // Focus goes back where it came from.
     button?.focus();
+  }
+
+  function closed() {
+    shown = false;
+    if (!open) button?.focus();
   }
 
   function pick(emoji: string | null) {
@@ -48,9 +59,9 @@
   </svg>
 </button>
 
-<ewo-sheet {open} label={t('avatar')} oncancel={close} onclose={close}>
+<ewo-sheet {open} label={t('avatar')} oncancel={close} onclose={closed}>
   <span slot="heading">{t('avatar')}</span>
-  {#if open}
+  {#if open || shown}
     <div class="groups {player.color ? `c-${player.color}` : ''}">
       <section>
         <h3 class="label">{t('avatarInitial')}</h3>

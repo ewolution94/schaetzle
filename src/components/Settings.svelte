@@ -14,6 +14,18 @@
 
   let theme: ThemeChoice = $state(storedTheme());
 
+  // The rows stay until the sheet's `close` event, after its exit animation: dropped as closing
+  // starts, the sheet slid out as a header on its own.
+  let shown = $state(false);
+  $effect(() => {
+    if (open) shown = true;
+  });
+
+  function closed() {
+    shown = false;
+    onclose();
+  }
+
   // Another tab, or the system's own switch while on System: the row shows what's stored.
   onMount(() => onThemeChange(() => (theme = storedTheme())));
 
@@ -38,9 +50,9 @@
   }
 </script>
 
-<ewo-sheet {open} label={t('settings')} oncancel={onclose} onclose={onclose}>
+<ewo-sheet {open} label={t('settings')} oncancel={onclose} onclose={closed}>
   <span slot="heading">{t('settings')}</span>
-  {#if open}
+  {#if open || shown}
     <section>
       <h3 class="label">{t('general')}</h3>
       <!-- Its words come from Folio and follow <html lang>, so every app says exactly the same. -->
