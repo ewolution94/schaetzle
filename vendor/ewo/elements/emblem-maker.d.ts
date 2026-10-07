@@ -9,7 +9,10 @@ import './emblem';
  * @attr {string} value - The numbers, comma-separated; the `value` property also takes an array. Random when missing.
  * @fires change - `detail: { value: number[] }` after a step or a roll.
  * @cssprop --ewo-emblem-maker-size - The big emblem's stage (default 200px).
- * @csspart arrow - Each arrow button.
+ * @cssprop --ewo-emblem-maker-inset - The emblem's margin inside the stage (default 8%; Kritzle's 6%).
+ * @csspart arrow - Each arrow button; the left ones are also `prev`, the right ones `next`.
+ * @csspart prev - The left column's arrows.
+ * @csspart next - The right column's arrows.
  * @csspart stage - The square the emblem sits on.
  * @csspart tag - The strip naming the new choice.
  * @csspart legend - The part names under the stage.
