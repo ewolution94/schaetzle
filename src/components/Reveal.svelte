@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { Player, View } from '../lib/api';
+  import type { Item, Player, Result, View } from '../lib/api';
   import { i18n, t } from '../lib/i18n.svelte';
   import { formatDeviation, formatPoints, formatPrice } from '../lib/price';
   import { ripple } from '../lib/field';
@@ -9,16 +9,33 @@
   import PriceTag from './PriceTag.svelte';
   import PriceLine from './PriceLine.svelte';
   import Avatar from './Avatar.svelte';
+  import Anchor from './Anchor.svelte';
+  import SortBoard from './SortBoard.svelte';
+  import TeamBoard from './TeamBoard.svelte';
 
   let { view, me, isHost, act }: { view: View; me: Player; isHost: boolean; act: (action: string, body?: unknown) => Promise<boolean> } = $props();
 
   const round = $derived(view.round!);
   const reveal = $derived(view.reveal!);
+  const mode = $derived(round.mode);
   const last = $derived(round.n >= round.total);
   const host = $derived(view.players.find((p) => p.id === view.host));
   const byId = $derived(new Map(view.players.map((p) => [p.id, p])));
-  /** The closest real guess gets the red: a joker scores the most but guessed nothing. */
-  const closest = $derived(view.reveal?.results.find((r) => r.guess !== null && r.points > 0) ?? null);
+  /** The best real guess gets the red: a joker scores the most but guessed nothing, and over the price doesn't count. */
+  const closest = $derived(reveal.results.find((r) => !r.joker && r.points > 0 && !r.over) ?? null);
+
+  // Sorting: the four in their real order, with their prices, and your own places to compare.
+  const sorted = $derived(
+    reveal.items && round.items ? (reveal.items.map((x) => round.items!.find((item) => item.id === x.id)).filter(Boolean) as Item[]) : [],
+  );
+  const prices = $derived(new Map((reveal.items ?? []).map((x) => [x.id, x.price])));
+  const mine = $derived(reveal.results.find((r) => r.player === me.id)?.order ?? null);
+
+  // Higher or lower: who said which.
+  const picked = (way: 'higher' | 'lower') => reveal.results.filter((r) => !r.joker && r.pick === way);
+  const rightWay = $derived(
+    round.anchor && reveal.price !== null ? (reveal.price > round.anchor.price ? 'higher' : reveal.price < round.anchor.price ? 'lower' : 'both') : null,
+  );
 
   const PLAYER_COLOURS: Record<string, string> = {
     mint: '#64c8b9', purple: '#b198db', orange: '#f8a171', blue: '#6ea0eb', pink: '#e89fdd',
@@ -26,11 +43,12 @@
   };
 
   let tagEl: HTMLElement | undefined = $state();
+  let boardEl: HTMLElement | undefined = $state();
 
   onMount(() => {
-    // A ring of red and the players' colours runs out from the tag through the dot field.
+    // A ring of red and the players' colours runs out from the tag (or the sorted row) through the dot field.
     const timer = setTimeout(() => {
-      const box = tagEl?.getBoundingClientRect();
+      const box = (tagEl ?? boardEl)?.getBoundingClientRect();
       if (!box) return;
       ripple(box.left + box.width / 2, box.top + box.height / 2, ['#dc001d', '#dc001d', ...view.players.map((p) => PLAYER_COLOURS[p.color] ?? '#dc001d')]);
     }, 260);
@@ -38,69 +56,122 @@
   });
 </script>
 
+{#snippet sub(result: Result)}
+  {#if result.joker}
+    <span class="joker">{t('joker')}</span>
+  {:else if mode === 'higher'}
+    {#if result.pick}
+      <span class="guess">{t(`pick_${result.pick}`)}</span>
+      <span class="verdict" class:ok={result.right}>{result.right ? t('right') : t('wrong')}</span>
+    {:else}
+      {t('noGuess')}
+    {/if}
+  {:else if mode === 'sort'}
+    {#if result.order}<span class="guess">{t('pairs', { n: result.pairs ?? 0 })}</span>{:else}{t('noGuess')}{/if}
+  {:else if typeof result.guess !== 'number'}
+    {t('noGuess')}
+  {:else}
+    <span class="guess">{formatPrice(result.guess)}</span>
+    <span class="dev">{formatDeviation(result.deviation ?? 0, i18n.lang)}</span>
+    {#if result.over}<span class="verdict">{t('over')}</span>{/if}
+  {/if}
+{/snippet}
+
+{#snippet board()}
+  <div class="card board">
+    {#if mode === 'higher' && round.anchor}
+      <div class="split">
+        {#each ['higher', 'lower'] as const as way (way)}
+          <div class="side-of" class:ok={rightWay === way || rightWay === 'both'}>
+            <span class="way-label">
+              <svg class:down={way === 'lower'} viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" /></svg>
+              {t(`pick_${way}`)}
+            </span>
+            <span class="voters">
+              {#each picked(way) as r (r.player)}
+                {@const player = byId.get(r.player)}
+                {#if player}<Avatar {player} size={28} />{/if}
+              {/each}
+            </span>
+          </div>
+        {/each}
+      </div>
+    {:else if mode !== 'sort' && reveal.price !== null}
+      <PriceLine price={reveal.price} results={reveal.results} players={view.players} hot={mode === 'hot'} />
+    {/if}
+    <ol class="results" class:flush={mode === 'sort'}>
+      {#each reveal.results as result, i (result.player)}
+        {@const player = byId.get(result.player)}
+        {#if player}
+          <li class:me={player.id === me.id} class:top={result === closest} style:--i={i}>
+            <Avatar {player} size={34} />
+            <span class="who">
+              <span class="name">
+                {player.name}
+                {#if player.id === me.id}<span class="you">({t('you')})</span>{/if}
+              </span>
+              <span class="sub">{@render sub(result)}</span>
+            </span>
+            <span class="pts">
+              {#if result.bullseye}<span class="bull">{t('bullseye')}</span>{/if}
+              <span class="gain price">+{formatPoints(result.points)}</span>
+              <span class="sum">{t('total', { points: formatPoints(player.score) })}</span>
+            </span>
+          </li>
+        {/if}
+      {/each}
+    </ol>
+  </div>
+
+  {#if view.teams && reveal.teams}
+    <div class="card teams">
+      <p class="label">{t('teamStandings')}</p>
+      <TeamBoard totals={view.teams} gains={reveal.teams} players={view.players} />
+    </div>
+  {/if}
+
+  {#if isHost}
+    <button class="btn primary block" onclick={() => act('next')}>{last ? t('toResults') : t('next')}</button>
+  {:else}
+    <p class="waiting">{t('waitingFor', { name: host?.name ?? '…' })}</p>
+  {/if}
+{/snippet}
+
 <section class="reveal">
   <header class="top">
-    <span class="label">{t('round', { n: round.n, total: round.total })}</span>
+    <span class="label">{t('round', { n: round.n, total: round.total })} · {t(`mode_${mode}`)}</span>
   </header>
 
-  <div class="grid">
-    <div class="pic">
-      <Media item={round.item} compact>
-        <span class="tag-spot" bind:this={tagEl}>
-          <PriceTag size="lg" caption={view.demo ? t('demoPrice') : t('realPrice')}>{formatPrice(reveal.price)}</PriceTag>
-        </span>
-      </Media>
-      <div class="about">
-        <ItemInfo item={round.item} />
-        {#if reveal.url}
-          <a class="ebay" href={reveal.url} target="_blank" rel="noopener noreferrer">{t('onEbay')} ↗</a>
-        {/if}
-      </div>
+  {#if mode === 'sort'}
+    <p class="label order-label">{t('realOrder')}</p>
+    <div bind:this={boardEl}>
+      <SortBoard items={sorted} {prices} {mine} />
     </div>
-
-    <div class="side">
-      <div class="card board">
-        <PriceLine price={reveal.price} results={reveal.results} players={view.players} />
-        <ol class="results">
-          {#each reveal.results as result, i (result.player)}
-            {@const player = byId.get(result.player)}
-            {#if player}
-              <li class:me={player.id === me.id} class:top={result === closest} style:--i={i}>
-                <Avatar {player} size={34} />
-                <span class="who">
-                  <span class="name">
-                    {player.name}
-                    {#if player.id === me.id}<span class="you">({t('you')})</span>{/if}
-                  </span>
-                  <span class="sub">
-                    {#if result.joker}
-                      <span class="joker">{t('joker')}</span>
-                    {:else if result.guess === null}
-                      {t('noGuess')}
-                    {:else}
-                      <span class="guess">{formatPrice(result.guess)}</span>
-                      <span class="dev">{formatDeviation(result.deviation ?? 0, i18n.lang)}</span>
-                    {/if}
-                  </span>
-                </span>
-                <span class="pts">
-                  {#if result.bullseye}<span class="bull">{t('bullseye')}</span>{/if}
-                  <span class="gain price">+{formatPoints(result.points)}</span>
-                  <span class="sum">{t('total', { points: formatPoints(player.score) })}</span>
-                </span>
-              </li>
-            {/if}
-          {/each}
-        </ol>
+    <div class="sort-side">
+      {@render board()}
+    </div>
+  {:else if round.item && reveal.price !== null}
+    <div class="grid">
+      <div class="pic">
+        <Media item={round.item} compact>
+          <span class="tag-spot" bind:this={tagEl}>
+            <PriceTag size="lg" caption={view.demo ? t('demoPrice') : t('realPrice')}>{formatPrice(reveal.price)}</PriceTag>
+          </span>
+        </Media>
+        <div class="about">
+          {#if round.anchor}<Anchor anchor={round.anchor} then={reveal.price} />{/if}
+          <ItemInfo item={round.item} />
+          {#if reveal.url}
+            <a class="ebay" href={reveal.url} target="_blank" rel="noopener noreferrer">{t('onEbay')} ↗</a>
+          {/if}
+        </div>
       </div>
 
-      {#if isHost}
-        <button class="btn primary block" onclick={() => act('next')}>{last ? t('toResults') : t('next')}</button>
-      {:else}
-        <p class="waiting">{t('waitingFor', { name: host?.name ?? '…' })}</p>
-      {/if}
+      <div class="side">
+        {@render board()}
+      </div>
     </div>
-  </div>
+  {/if}
 </section>
 
 <style>
@@ -269,5 +340,89 @@
     border: 1px solid var(--ewo-line-2);
     text-align: center;
     color: var(--ewo-fg-2);
+  }
+  .verdict {
+    padding: 1px 7px;
+    border-radius: var(--ewo-r-pill);
+    background: var(--red-soft);
+    color: var(--red-text);
+    font: 700 10px/1.6 var(--ewo-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .verdict.ok {
+    background: var(--ewo-fill-2);
+    color: var(--ewo-fg-2);
+  }
+
+  /* Higher or lower: who said which, the right side outlined in red. */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding-top: 12px;
+  }
+  .side-of {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 92px;
+    padding: 12px;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--ewo-line-2);
+  }
+  .side-of.ok {
+    background: var(--red-soft);
+    box-shadow: inset 0 0 0 2px var(--red);
+  }
+  .way-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+  }
+  .way-label svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .way-label svg.down {
+    rotate: 180deg;
+  }
+  .voters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .results.flush {
+    margin-top: 6px;
+  }
+  .results.flush li:first-child {
+    border-top: 0;
+  }
+
+  .teams {
+    padding: 16px;
+  }
+  .teams .label {
+    margin: 0 0 12px;
+  }
+
+  /* Sorting: the four in a row (two by two on a phone), then the scores. */
+  .order-label {
+    margin: 0;
+  }
+  .sort-side {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 640px;
+    width: 100%;
+    margin: 14px auto 0;
   }
 </style>

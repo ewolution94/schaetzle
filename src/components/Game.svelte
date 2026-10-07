@@ -30,7 +30,9 @@
 
   // Each new screen (a new round, the reveal, the results) starts at the top, wherever the last
   // one was scrolled to.
-  const screen = $derived(view ? `${view.phase}:${view.round?.n ?? ''}:${view.round?.item.id ?? ''}` : '');
+  /** The round's item, or its four items when sorting: a new deal is a new round screen. */
+  const deal = $derived(view?.round ? (view.round.item?.id ?? view.round.items?.map((item) => item.id).join('+') ?? '') : '');
+  const screen = $derived(view ? `${view.phase}:${view.round?.n ?? ''}:${deal}` : '');
   let lastScreen = '';
   $effect(() => {
     if (screen && screen !== lastScreen) {
@@ -66,7 +68,7 @@
   {#if view.phase === 'lobby' || view.phase === 'loading'}
     <Lobby {view} {me} {isHost} {act} />
   {:else if view.phase === 'guess' && view.round}
-    {#key view.round.item.id}
+    {#key deal}
       <Round {view} {me} {isHost} {room} {act} />
     {/key}
   {:else if view.phase === 'reveal' && view.round && view.reveal}

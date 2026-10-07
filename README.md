@@ -12,8 +12,29 @@ spirit of [guess-the-price.net](https://guess-the-price.net/). Live at
 - **Start a game, share the link.** A room gets a four-letter code (no vowels, so no code spells a
   word) and a link like `schaetzle.ewolution.cloud/KXPT`, with a QR code for the meeting room's
   screen. No accounts: a name is enough, and a reload or a locked phone puts you back in your seat.
-- **The host sets the game:** 5, 10 or 15 rounds, 20 to 60 seconds per round, a price range (up to
-  50€, up to 500€, anything), 0 to 3 jokers per player, any mix of themes to draw from (Tech, Home,
+- **Four modes**, picked in the lobby:
+  - **Guess the price** (*Schätzen*): the classic, scored by the ratio (below).
+  - **Don't go over** (*Der Preis ist heiß*): the same, but a guess over the price scores nothing,
+    and "closest" means closest without going over.
+  - **Higher or lower** (*Teurer oder billiger*): each item against the one before it, whose price
+    shows. One tap answers. Right scores 500, plus up to 500 more the closer the two prices are
+    (`500 + 500 × max(0, 1 − |log₂(price ÷ last)| ÷ 3)`); wrong scores 0. The game opens with an
+    extra item to compare against, and neighbours are always at least 10 % apart.
+  - **Sort** (*Sortieren*): four items a round, tapped from cheapest to priciest (a second tap takes
+    a place back). Each of the six pairs in the right order is a sixth of 1,000, so one swap of
+    neighbours still scores 833. No two prices in a round are within 10 % of each other. Picking it
+    lifts a timer under 60 seconds to 60.
+- **Teams** (off, 2, 3 or 4), with any mode: everyone is spread over the teams in turn, newcomers
+  join the smallest, anyone can switch in the lobby, and the host can shuffle. A team scores its
+  players' average each round, so a team of two can beat a team of five. The reveal and the end show
+  the teams' standings; the players' own ranking stays.
+- **The big screen** (`/KXPT/screen`, linked in the lobby): the room for a projector or a shared
+  screen in a call. It watches without a seat (never a player, no controls) and fits the screen
+  without scrolling: a big QR code and the players arriving in the lobby, the item, the timer and who
+  is in during a round, the reveal and the standings, the winner. It keeps the display awake where the
+  browser allows it.
+- **The host sets the game:** the mode, 5, 10 or 15 rounds, 20 to 90 seconds per round, a price range (up to
+  50€, up to 500€, anything), 0 to 3 jokers per player, teams, any mix of themes to draw from (Tech, Home,
   Kitchen, Fashion, Toys, Collectibles, Sport & outdoors, Garden & tools, Oddities; at least one to
   start), and whether the title shows. Changes show on the host's screen the moment they're tapped
   and reach the others a moment later.
@@ -28,7 +49,7 @@ spirit of [guess-the-price.net](https://guess-the-price.net/). Live at
   On a live item there's a link to the listing.
 - **The end:** a podium, the full ranking, every round's item with its price and who came closest,
   and "Play again" for the same group.
-- **Scoring** looks at the ratio, because prices are multiplicative: `1000 × (1 − |log₂(guess ÷
+- **Scoring** (guess the price) looks at the ratio, because prices are multiplicative: `1000 × (1 − |log₂(guess ÷
   price)|)`, at least 0. Too high and too low by the same factor score the same; half or double the
   price scores nothing; 10 % off scores about 850. Within 2 % is a "Bullseye". Speed doesn't count.
   The round's red highlight and the recap's "closest" go to the best real guess, never a joker.
@@ -46,7 +67,13 @@ the whole view each time something changes.
   for Pulse. The page reconnects by itself with backoff (`src/lib/room.svelte.ts`), and the stream
   sends a heartbeat every 20 seconds, so Cloudflare never drops a quiet one.
 - **Nobody sees a price early.** During a round the view has no price; it arrives with the reveal.
-  Guesses are hidden too: you only see who has guessed.
+  Guesses are hidden too: you only see who has guessed. The one price that shows is higher or
+  lower's item to compare against, which was revealed the round before (or opens the game).
+- **Modes are dealt at the start** (`dealItems` in `server/game.mjs`): the drawn items become the
+  rounds' items in order, the spares for skips, and for higher or lower the opening item. Sorting
+  draws four items a round and still costs the same five eBay calls (four searches of 50 listings).
+  A skip deals a new item, or four when sorting; higher or lower's spare is one far enough from both
+  neighbours.
 - **The host's settings are optimistic:** the lobby shows a change at once and sends changes one
   request at a time (merging what piles up meanwhile), so quick taps can't overtake each other; the
   server's view takes over once it agrees, and a refusal falls back to it with a message.
@@ -133,13 +160,14 @@ This mirrors Cantina, Atrium and Aale Spiele:
 server/server.mjs         static files + security headers, wires the rest; no dependencies
 server/game.mjs           rooms, players, rounds, the clock (no I/O; tested with a fake clock)
 server/api.mjs            the game over HTTP: JSON moves, the SSE stream
-server/scoring.mjs        points for a guess
+server/scoring.mjs        points for a guess, a pick (higher or lower) and an order (sort)
 server/images.mjs         product photos through our origin
 server/items/             ebay.mjs (live), mock.mjs (demo), themes.mjs (keywords, ranges, blocklist)
 server/census.mjs         forwards /_e.js and /_e to Census (visit counts)
 src/lib/room.svelte.ts    the live room: the stream, reconnects, moves
 src/lib/price.ts          reading and showing prices (5,80€)
-src/components/           Home, Join, Game → Lobby, Round, Reveal, Final; PriceTag, PriceLine, Media, Qr
+src/components/           Home, Join, Game → Lobby, Round, Reveal, Final; Screen (the big screen);
+                          SortBoard, Anchor, TeamBoard, PriceTag, PriceLine, Media, Thumb, Qr
 public/sw.js              offline shell (never the game's /api/ or /img/)
 brand/                    the mark and app icons (public/icons/ is rendered from them)
 vendor/ewo/               Folio's tokens, fonts and elements (npm run vendor -- schaetzle in Folio)

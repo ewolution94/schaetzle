@@ -3,6 +3,9 @@
 export type Phase = 'lobby' | 'loading' | 'guess' | 'reveal' | 'final' | 'gone';
 export type Theme = 'tech' | 'home' | 'kitchen' | 'fashion' | 'toys' | 'collect' | 'outdoor' | 'garden' | 'odd';
 export type PriceRange = 'small' | 'everyday' | 'all';
+/** classic: guess the price · hot: don't go over · higher: dearer or cheaper than the last · sort: four in order */
+export type Mode = 'classic' | 'hot' | 'higher' | 'sort';
+export type Pick = 'higher' | 'lower';
 export type Tint = 'beige' | 'blue' | 'green' | 'mint' | 'orange' | 'pink' | 'purple' | 'yellow' | 'warm';
 
 export interface Settings {
@@ -13,6 +16,9 @@ export interface Settings {
   showTitle: boolean;
   /** Jokers per player and game; a joker scores the round's maximum without a guess. */
   jokers: number;
+  mode: Mode;
+  /** 0 (off), or 2 to 4 teams. */
+  teams: number;
 }
 
 export interface Player {
@@ -25,6 +31,8 @@ export interface Player {
   guessed: boolean;
   /** Jokers left in this game. */
   jokers: number;
+  /** Their team's index, or null without teams. */
+  team: number | null;
 }
 
 export interface Art {
@@ -41,23 +49,57 @@ export interface Item {
   art: Art | null;
 }
 
+/** One player's round. Which fields are there depends on the mode. */
 export interface Result {
   player: string;
-  guess: number | null;
   joker: boolean;
   points: number;
-  deviation: number | null;
-  bullseye: boolean;
+  /** classic, hot */
+  guess?: number | null;
+  deviation?: number | null;
+  bullseye?: boolean;
+  /** hot: over the price, so 0 */
+  over?: boolean;
+  /** higher */
+  pick?: Pick | null;
+  right?: boolean | null;
+  /** sort: item ids, cheapest first as they put them, and how many of the six pairs were right */
+  order?: string[] | null;
+  pairs?: number | null;
 }
 
-export interface Recap {
-  n: number;
+export interface RecapItem {
   title: string;
   price: number;
   url: string | null;
   art: Art | null;
   image: string | null;
-  best: { player: string; guess: number; points: number } | null;
+}
+
+export interface Recap extends Partial<RecapItem> {
+  n: number;
+  mode: Mode;
+  /** sort: the four, cheapest first */
+  items?: RecapItem[];
+  /** higher: the price to beat, and how many of those who picked were right */
+  anchor?: number;
+  right?: number;
+  picks?: number;
+  best: { player: string; guess: number | null; pairs: number | null; points: number } | null;
+}
+
+export interface Round {
+  n: number;
+  total: number;
+  endsAt: number;
+  skips: number;
+  mode: Mode;
+  /** classic, hot, higher */
+  item: Item | null;
+  /** sort */
+  items: Item[] | null;
+  /** higher: the item to beat, with its price */
+  anchor: (Item & { price: number }) | null;
 }
 
 export interface View {
@@ -69,8 +111,20 @@ export interface View {
   settings: Settings;
   notice: string | null;
   players: Player[];
-  round: { n: number; total: number; endsAt: number; skips: number; item: Item } | null;
-  reveal: { price: number; url: string | null; results: Result[] } | null;
+  /** The game being played, from its start to the rematch. */
+  game: { mode: Mode; teams: number } | null;
+  /** Each team's total in this game. */
+  teams: number[] | null;
+  round: Round | null;
+  reveal: {
+    price: number | null;
+    url: string | null;
+    /** sort: the real order, cheapest first */
+    items: { id: string; price: number; url: string | null }[] | null;
+    results: Result[];
+    /** Each team's points this round. */
+    teams: number[] | null;
+  } | null;
   history: Recap[];
   now: number;
 }
@@ -88,6 +142,8 @@ export interface Config {
   rounds: number[];
   seconds: number[];
   jokers: number[];
+  modes: Mode[];
+  teams: number[];
 }
 
 /** A refusal from the server ("no-room", "not-host" …) or a network failure ("offline"). */

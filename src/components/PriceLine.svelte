@@ -1,12 +1,13 @@
 <script lang="ts">
   // Every guess on one line around the real price. The scale is logarithmic, like the scoring:
   // double and half the price sit the same distance either side of it. Guesses more than 8× off
-  // are pinned to the ends.
+  // are pinned to the ends. In "Der Preis ist heiß" (hot) only the side under the price scores, and
+  // guesses over it are faded.
   import type { Player, Result } from '../lib/api';
   import { formatPrice } from '../lib/price';
   import Avatar from './Avatar.svelte';
 
-  let { price, results, players }: { price: number; results: Result[]; players: Player[] } = $props();
+  let { price, results, players, hot = false }: { price: number; results: Result[]; players: Player[]; hot?: boolean } = $props();
 
   const LIMIT = 8;
 
@@ -14,7 +15,7 @@
   const round = (x: number) => (x >= 10 ? Math.round(x) : Math.round(x * 10) / 10);
 
   const marks = $derived.by(() => {
-    const guesses = results.filter((r) => r.guess !== null) as (Result & { guess: number })[];
+    const guesses = results.filter((r) => typeof r.guess === 'number') as (Result & { guess: number })[];
     const ratios = guesses.map((r) => Math.min(LIMIT, Math.max(1 / LIMIT, r.guess / price)));
     const span = Math.max(1.6, ...ratios.map((x) => Math.max(x, 1 / x))) * 1.18;
     const pos = (ratio: number) => 50 + (Math.log(ratio) / Math.log(span)) * 50;
@@ -37,10 +38,10 @@
 
 <div class="line" style:--lanes={marks.lanes}>
   <div class="track">
-    <span class="score-zone" style:left="{marks.half}%" style:right="{100 - marks.double}%"></span>
+    <span class="score-zone" style:left="{marks.half}%" style:right="{hot ? 50 : 100 - marks.double}%"></span>
     <span class="truth"><span class="truth-label price">{formatPrice(price)}</span></span>
     {#each marks.placed as mark, i (mark.r.player)}
-      <span class="mark" style:left="{mark.x}%" style:--lane={mark.lane} style:--i={i}>
+      <span class="mark" class:over={mark.r.over} style:left="{mark.x}%" style:--lane={mark.lane} style:--i={i}>
         <Avatar player={mark.player!} size={28} />
       </span>
     {/each}
@@ -105,6 +106,9 @@
     width: 1px;
     height: calc(var(--lane) * 32px + 8px);
     background: var(--ewo-line-strong);
+  }
+  .mark.over {
+    opacity: 0.4;
   }
   @keyframes drop {
     from {

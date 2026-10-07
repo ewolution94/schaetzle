@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { Player, View } from '../lib/api';
-  import { t } from '../lib/i18n.svelte';
+  import { t, type Key } from '../lib/i18n.svelte';
   import { formatPoints, formatPrice } from '../lib/price';
   import Avatar from './Avatar.svelte';
+  import Thumb from './Thumb.svelte';
+  import TeamBoard from './TeamBoard.svelte';
 
   let { view, me, isHost, act }: { view: View; me: Player; isHost: boolean; act: (action: string, body?: unknown) => Promise<boolean> } = $props();
 
@@ -14,6 +16,21 @@
   const tie = $derived(ranked.length > 1 && ranked[0].score === ranked[1].score);
   const byId = $derived(new Map(view.players.map((p) => [p.id, p])));
   const host = $derived(view.players.find((p) => p.id === view.host));
+  const mode = $derived(view.game?.mode ?? 'classic');
+
+  // With teams, the teams win; the players' podium follows.
+  const teamTotals = $derived(view.game?.teams && view.teams ? view.teams : null);
+  const teamOrder = $derived(teamTotals ? teamTotals.map((total, team) => ({ team, total })).sort((a, b) => b.total - a.total) : []);
+  const teamTie = $derived(teamOrder.length > 1 && teamOrder[0].total === teamOrder[1].total);
+  const title = $derived(
+    teamTotals
+      ? teamTie
+        ? t('teamTie')
+        : t('teamWins', { name: t(`team_${teamOrder[0].team}` as Key) })
+      : tie
+        ? t('tie')
+        : t('winner', { name: ranked[0]?.name ?? '' }),
+  );
 
   // A few pieces of confetti in OTTO's colours, once. Nothing keeps moving afterwards.
   const CONFETTI = ['#dc001d', '#64c8b9', '#f5d547', '#b198db', '#6ea0eb', '#f8a171'];
@@ -41,8 +58,15 @@
 
   <header>
     <p class="label">{t('results')}</p>
-    <h1>{tie ? t('tie') : t('winner', { name: ranked[0]?.name ?? '' })}</h1>
+    <h1>{title}</h1>
   </header>
+
+  {#if teamTotals}
+    <div class="card teams">
+      <TeamBoard totals={teamTotals} players={view.players} />
+    </div>
+    <p class="label players-label">{t('bestPlayers')}</p>
+  {/if}
 
   <ol class="podium">
     {#each podium as player, i (player.id)}
@@ -81,25 +105,37 @@
     <ol>
       {#each view.history as round (round.n)}
         {@const best = round.best ? byId.get(round.best.player) : null}
-        <li>
-          <span class="thumb">
-            {#if round.image}
-              <img src={round.image} alt="" loading="lazy" />
-            {:else if round.art}
-              <span class="t-{round.art.tint}">{round.art.emoji}</span>
-            {/if}
-          </span>
-          <span class="what">
-            {#if round.url}
-              <a href={round.url} target="_blank" rel="noopener noreferrer">{round.title}</a>
-            {:else}
-              {round.title}
-            {/if}
-            {#if best && round.best}
-              <span class="best">{t('closest')}: {best.name} · {formatPrice(round.best.guess)}</span>
-            {/if}
-          </span>
-          <span class="was price">{formatPrice(round.price)}</span>
+        <li class:multi={round.items}>
+          {#if round.items}
+            <span class="what">
+              <span class="row">
+                {#each round.items as item, i (i)}
+                  <span class="mini">
+                    <span class="thumb"><Thumb image={item.image} art={item.art} /></span>
+                    <span class="mini-price price">{formatPrice(item.price)}</span>
+                  </span>
+                {/each}
+              </span>
+              {#if best && round.best}
+                <span class="best">{t('bestOrder')}: {best.name} · {t('pairs', { n: round.best.pairs ?? 0 })}</span>
+              {/if}
+            </span>
+          {:else}
+            <span class="thumb"><Thumb image={round.image ?? null} art={round.art ?? null} /></span>
+            <span class="what">
+              {#if round.url}
+                <a href={round.url} target="_blank" rel="noopener noreferrer">{round.title}</a>
+              {:else}
+                {round.title}
+              {/if}
+              {#if round.anchor !== undefined}
+                <span class="best">{t('afterPrice', { price: formatPrice(round.anchor) })} · {t('picksRight', { right: round.right ?? 0, picks: round.picks ?? 0 })}</span>
+              {:else if best && round.best && round.best.guess !== null}
+                <span class="best">{mode === 'hot' ? t('closestUnder') : t('closest')}: {best.name} · {formatPrice(round.best.guess)}</span>
+              {/if}
+            </span>
+            <span class="was price">{formatPrice(round.price ?? 0)}</span>
+          {/if}
         </li>
       {/each}
     </ol>
@@ -252,18 +288,35 @@
     overflow: hidden;
     background: var(--plate);
   }
-  .thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-  .thumb span {
+  /* Sorting: the four of a round in a row, cheapest first, each with its price. */
+  .row {
     display: grid;
-    place-items: center;
+    grid-template-columns: repeat(4, minmax(0, 56px));
+    gap: 8px;
+  }
+  .mini {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .mini .thumb {
     width: 100%;
-    height: 100%;
-    background: var(--tint);
-    font-size: 26px;
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .mini-price {
+    color: var(--red-text);
+    font-size: 13px;
+  }
+  .what .best {
+    margin-top: 2px;
+  }
+  .teams {
+    padding: 18px 18px 20px;
+  }
+  .players-label {
+    margin: 8px 0 -12px;
+    text-align: center;
   }
   .what {
     flex: 1;

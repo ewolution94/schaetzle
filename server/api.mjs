@@ -5,8 +5,10 @@
 //   GET  /api/rooms/:code                does it exist, is it full → {code, phase, players, full}
 //   POST /api/rooms/:code/join {name, token?}   a seat (the same one again with your token)
 //   GET  /api/rooms/:code/events?p=<id>  the room's view, now and after every change (SSE)
-//   POST /api/rooms/:code/<action>       settings, start, guess, joker, skip, next, rematch, kick, leave
+//   POST /api/rooms/:code/<action>       settings, start, guess, joker, skip, next, rematch, team, shuffle,
+//                                        kick, leave
 //                                        with your token in `x-schaetzle-token`
+//   GET  /api/rooms/:code/events         without `p`: the same stream for the big screen (/:code/screen)
 //
 // Why SSE and not WebSockets: everything the server pushes is one small JSON view, moves are rare
 // (a guess every few seconds), Node has no WebSocket server built in, and SSE already runs through
@@ -15,7 +17,7 @@
 // Errors are `{ "error": "<code>" }` with a status; the codes are GameError's and the client
 // words them.
 
-import { GameError, ROUND_CHOICES, SECOND_CHOICES, JOKER_CHOICES, DEFAULT_SETTINGS } from './game.mjs';
+import { GameError, ROUND_CHOICES, SECOND_CHOICES, JOKER_CHOICES, MODES, TEAM_CHOICES, DEFAULT_SETTINGS } from './game.mjs';
 import { PRICES, THEME_KEYS } from './items/themes.mjs';
 
 const MAX_BODY = 4096;
@@ -110,6 +112,8 @@ export function createApi({ games, demo }) {
           rounds: ROUND_CHOICES,
           seconds: SECOND_CHOICES,
           jokers: JOKER_CHOICES,
+          modes: MODES,
+          teams: TEAM_CHOICES,
           defaults: DEFAULT_SETTINGS,
         });
         return true;

@@ -179,6 +179,13 @@ button {
 .c-teal { --pc: #099f91; }
 .c-plum { --pc: #9c7fcb; }
 
+/* Teams: four strong colours, apart from each other and from the players' soft ones. Used as
+   dots, bars and outlines, never behind text. */
+.team-0 { --team: #dc001d; }
+.team-1 { --team: #2f6fd6; }
+.team-2 { --team: #e8ac00; }
+.team-3 { --team: #2e9a4b; }
+
 /* The demo items' grounds: OTTO's soft colours on paper, its strong ones dimmed at night. */
 .t-beige { --tint: light-dark(#f5e6d7, color-mix(in oklab, #603117 55%, #161619)); }
 .t-blue { --tint: light-dark(#c5eaff, color-mix(in oklab, #1e5a78 60%, #161619)); }

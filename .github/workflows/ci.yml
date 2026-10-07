@@ -46,6 +46,7 @@ jobs:
           base=http://127.0.0.1:5899
           curl -sf $base/ | grep -q '<title>Schätzle</title>'
           curl -sf $base/KXPT | grep -q '<title>Schätzle</title>'
+          curl -sf $base/KXPT/screen | grep -q '<title>Schätzle</title>'
           curl -sI $base/ | grep -qi "content-security-policy: default-src 'self'"
           curl -sI $base/ | grep -qi "cache-control: no-cache"
           curl -sf $base/manifest.webmanifest | grep -q '"name": "Schätzle"'
@@ -66,6 +67,13 @@ jobs:
           curl -sf -X POST -H 'content-type: application/json' --data '{"name":"Zwei"}' $base/api/rooms/$code/join | grep -q '"player"'
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -H "x-schaetzle-token: $token" --data '{}' $base/api/rooms/$code/start)" = 204
           curl -s -N --max-time 2 "$base/api/rooms/$code/events?p=x" | grep -q '"phase":"guess"'
+          # A sorting game with teams deals four items a round, seen on the big screen's stream (no p).
+          sorter=$(curl -sf -X POST -H 'content-type: application/json' --data '{"name":"CI"}' $base/api/rooms)
+          scode=$(echo "$sorter" | node -pe 'JSON.parse(require("fs").readFileSync(0)).code')
+          stoken=$(echo "$sorter" | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+          curl -sf -X POST -H 'content-type: application/json' -H "x-schaetzle-token: $stoken" --data '{"mode":"sort","teams":2}' $base/api/rooms/$scode/settings
+          curl -sf -X POST -H 'content-type: application/json' -H "x-schaetzle-token: $stoken" --data '{}' $base/api/rooms/$scode/start
+          curl -s -N --max-time 2 "$base/api/rooms/$scode/events" | grep -q '"items":\[{'
           # The Census forwarder is wired in; without SCHAETZLE_CENSUS it answers locally.
           test "$(curl -s -o /dev/null -w '%{http_code}' $base/_e.js)" = 200
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST --data '{}' $base/_e)" = 204

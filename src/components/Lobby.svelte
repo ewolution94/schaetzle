@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Player, PriceRange, Settings, Theme, View } from '../lib/api';
+  import type { Mode, Player, PriceRange, Settings, Theme, View } from '../lib/api';
   import { t, type Key } from '../lib/i18n.svelte';
   import Avatar from './Avatar.svelte';
   import Qr from './Qr.svelte';
@@ -13,6 +13,11 @@
 
   const THEMES: Theme[] = ['tech', 'home', 'kitchen', 'fashion', 'toys', 'collect', 'outdoor', 'garden', 'odd'];
   const PRICES: PriceRange[] = ['small', 'everyday', 'all'];
+  const MODES: Mode[] = ['classic', 'hot', 'higher', 'sort'];
+  const TEAMS = [0, 2, 3, 4];
+  const SECONDS = [20, 30, 45, 60, 90];
+  /** Sorting four items takes longer: picking it lifts a shorter timer (server/game.mjs does the same). */
+  const SORT_SECONDS = 60;
 
   const url = $derived(`${location.origin}/${view.code}`);
   const host = $derived(view.players.find((p) => p.id === view.host));
@@ -58,6 +63,16 @@
     set({ themes: THEMES.filter((x) => next.includes(x)) });
   }
 
+  function pickMode(mode: Mode) {
+    const lift = mode === 'sort' && settings.mode !== 'sort' && settings.seconds < SORT_SECONDS;
+    set(lift ? { mode, seconds: SORT_SECONDS } : { mode });
+  }
+
+  // Teams: the players grouped by team once the server has put everyone in one.
+  const teamCount = $derived(settings.teams);
+  const grouped = $derived(teamCount > 0 && view.players.every((p) => p.team !== null && p.team < teamCount));
+  const teamsOf = $derived(Array.from({ length: teamCount }, (_, team) => view.players.filter((p) => p.team === team)));
+
   let starting = $state(false);
   const loading = $derived(view.phase === 'loading' || starting);
   const noThemes = $derived(settings.themes.length === 0);
@@ -87,6 +102,8 @@
   const notice = $derived(view.notice?.startsWith('items-failed:') ? t('notice:items', { reason: view.notice.slice(13) }) : null);
   const summary = $derived(
     [
+      t(`mode_${settings.mode}`),
+      ...(settings.teams ? [t('teamsSummary', { n: settings.teams })] : []),
       `${settings.rounds} ${t('rounds')}`,
       t('seconds', { n: settings.seconds }),
       t(`price_${settings.price}` as Key),
@@ -112,39 +129,96 @@
     <div class="qr" class:open={qrOpen}>
       <Qr {url} />
     </div>
+    <a class="screen-link" href="/{view.code}/screen" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.5" /><path d="M5.5 13.5h5M8 11v2.5" /></svg>
+      <span>
+        <strong>{t('bigScreen')} ↗</strong>
+        <small>{t('bigScreenHint')}</small>
+      </span>
+    </a>
     {#if view.demo}
       <p class="demo"><ewo-badge tone="accent" variant="soft" size="sm">{t('demo')}</ewo-badge> {t('demoItems')}</p>
     {/if}
   </div>
 
+  {#snippet person(player: Player)}
+    <li class:offline={!player.online}>
+      <Avatar {player} size={34} dim={!player.online} />
+      <span class="name">
+        {player.name}
+        {#if player.id === me.id}<span class="you">({t('you')})</span>{/if}
+      </span>
+      {#if player.id === view.host}
+        <ewo-badge tone="neutral" variant="soft" size="sm" nodot>{t('host')}</ewo-badge>
+      {:else if !player.online}
+        <span class="label">{t('offline')}</span>
+      {/if}
+      {#if isHost && player.id !== me.id}
+        <button class="kick" aria-label={t('remove', { name: player.name })} onclick={() => act('kick', { player: player.id })}>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+        </button>
+      {/if}
+    </li>
+  {/snippet}
+
   <div class="card players">
-    <p class="label">{t('players')} · {view.players.length}</p>
-    <ul>
-      {#each view.players as player (player.id)}
-        <li class:offline={!player.online}>
-          <Avatar {player} size={34} dim={!player.online} />
-          <span class="name">
-            {player.name}
-            {#if player.id === me.id}<span class="you">({t('you')})</span>{/if}
-          </span>
-          {#if player.id === view.host}
-            <ewo-badge tone="neutral" variant="soft" size="sm" nodot>{t('host')}</ewo-badge>
-          {:else if !player.online}
-            <span class="label">{t('offline')}</span>
-          {/if}
-          {#if isHost && player.id !== me.id}
-            <button class="kick" aria-label={t('remove', { name: player.name })} onclick={() => act('kick', { player: player.id })}>
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
-            </button>
-          {/if}
-        </li>
-      {/each}
-    </ul>
+    <div class="players-head">
+      <p class="label">{t('players')} · {view.players.length}</p>
+      {#if grouped && isHost}
+        <button class="link" disabled={loading} onclick={() => act('shuffle')}>{t('shuffleTeams')}</button>
+      {/if}
+    </div>
+    {#if grouped}
+      <div class="team-list">
+        {#each teamsOf as members, team (team)}
+          <section class="team team-{team}" aria-label={t('teamName', { name: t(`team_${team}` as Key) })}>
+            <header>
+              <span class="dot" aria-hidden="true"></span>
+              <span class="team-name">{t('teamName', { name: t(`team_${team}` as Key) })}</span>
+              <span class="count">{members.length}</span>
+              {#if me.team !== team}
+                <button class="link join" disabled={loading} onclick={() => act('team', { team })}>{t('joinTeam')}</button>
+              {/if}
+            </header>
+            {#if members.length}
+              <ul>
+                {#each members as player (player.id)}{@render person(player)}{/each}
+              </ul>
+            {:else}
+              <p class="empty">{t('nobodyYet')}</p>
+            {/if}
+          </section>
+        {/each}
+      </div>
+    {:else}
+      <ul>
+        {#each view.players as player (player.id)}{@render person(player)}{/each}
+      </ul>
+    {/if}
   </div>
 
   <div class="card settings">
     <p class="label">{t('settings')}</p>
     {#if isHost}
+      <div class="setting modes-setting">
+        <span>{t('mode')}</span>
+        <div class="modes" role="radiogroup" aria-label={t('mode')}>
+          {#each MODES as mode (mode)}
+            <button
+              class="mode"
+              role="radio"
+              aria-checked={settings.mode === mode}
+              aria-labelledby="mode-{mode}"
+              aria-describedby="mode-{mode}-hint"
+              disabled={loading}
+              onclick={() => pickMode(mode)}
+            >
+              <span class="mode-name" id="mode-{mode}">{t(`mode_${mode}`)}</span>
+              <span class="mode-hint" id="mode-{mode}-hint">{t(`mode_${mode}_hint`)}</span>
+            </button>
+          {/each}
+        </div>
+      </div>
       <div class="setting">
         <span>{t('rounds')}</span>
         <ewo-segmented
@@ -162,7 +236,7 @@
           tone="accent"
           label={t('time')}
           value={String(settings.seconds)}
-          options={[20, 30, 45, 60].map((n) => ({ value: String(n), label: t('seconds', { n }) }))}
+          options={SECONDS.map((n) => ({ value: String(n), label: t('seconds', { n }) }))}
           disabled={loading}
           onchange={(e) => set({ seconds: Number(e.detail.value) })}
         ></ewo-segmented>
@@ -190,6 +264,20 @@
           options={[0, 1, 2, 3].map((n) => ({ value: String(n), label: String(n) }))}
           disabled={loading}
           onchange={(e) => set({ jokers: Number(e.detail.value) })}
+        ></ewo-segmented>
+      </div>
+      <div class="setting">
+        <span class="named">
+          {t('teams')}
+          <small>{t('teamsHint')}</small>
+        </span>
+        <ewo-segmented
+          tone="accent"
+          label={t('teams')}
+          value={String(settings.teams)}
+          options={TEAMS.map((n) => ({ value: String(n), label: n ? String(n) : t('teamsOff') }))}
+          disabled={loading}
+          onchange={(e) => set({ teams: Number(e.detail.value) })}
         ></ewo-segmented>
       </div>
       <div class="setting themes">
@@ -375,6 +463,138 @@
     stroke: currentColor;
     stroke-width: 1.8;
     stroke-linecap: round;
+  }
+
+  .screen-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0 0;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    text-align: left;
+    text-decoration: none;
+  }
+  .screen-link:hover strong {
+    text-decoration: underline;
+  }
+  .screen-link svg {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+  }
+  .screen-link span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .screen-link strong {
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .screen-link small {
+    color: var(--ewo-fg-3);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .players-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0 0 12px;
+  }
+  .players-head .label {
+    margin: 0;
+  }
+  .team-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .team header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid var(--team);
+  }
+  .team .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--team);
+  }
+  .team-name {
+    font-weight: 650;
+  }
+  .team .count {
+    color: var(--ewo-fg-3);
+    font-size: 13px;
+  }
+  .team .join {
+    margin-left: auto;
+  }
+  .team ul {
+    margin-top: 4px;
+  }
+  .empty {
+    margin: 8px 0 0;
+    color: var(--ewo-fg-3);
+    font-size: 14px;
+  }
+
+  .modes-setting {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .modes-setting > span {
+    align-self: flex-start;
+  }
+  .modes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 8px;
+  }
+  .mode {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px 14px;
+    border: 1px solid var(--ewo-line);
+    border-radius: var(--radius);
+    background: transparent;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mode-name {
+    font-weight: 650;
+  }
+  .mode-hint {
+    color: var(--ewo-fg-3);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.4;
+  }
+  .mode[aria-checked='true'] {
+    border-color: var(--red);
+    background: var(--red-soft);
+    box-shadow: inset 0 0 0 1px var(--red);
+  }
+  .mode[aria-checked='true'] .mode-hint {
+    color: var(--ewo-fg-2);
+  }
+  .mode:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .mode:disabled {
+    opacity: 0.5;
   }
 
   .settings {

@@ -5,9 +5,13 @@
 // forgotten after half an hour.
 //
 // Phases: lobby → loading (drawing items) → guess ⇄ reveal → final → (rematch) lobby.
+//
+// Modes (settings.mode) change what's on the table and what a guess is: one item and a price
+// (classic, hot), one item and the last one's price to beat (higher), or four items to put in
+// order (sort). Teams (settings.teams) work with every mode.
 
 import { randomBytes, randomInt } from 'node:crypto';
-import { MAX_POINTS, bullseye, deviation, score } from './scoring.mjs';
+import { MAX_POINTS, bullseye, deviation, score, scoreOrder, scorePick, scoreUnder } from './scoring.mjs';
 import { THEME_KEYS, isPriceRange, isTheme } from './items/themes.mjs';
 
 /** Room codes have no vowels, so no code spells a word. */
@@ -15,7 +19,23 @@ const CODE_LETTERS = 'BCDFGHJKLMNPQRSTVWXZ';
 export const CODE = /^[BCDFGHJKLMNPQRSTVWXZ]{4}$/;
 
 export const ROUND_CHOICES = [5, 10, 15];
-export const SECOND_CHOICES = [20, 30, 45, 60];
+export const SECOND_CHOICES = [20, 30, 45, 60, 90];
+/**
+ * How a round is played:
+ *   classic  guess the price; the ratio scores (scoring.mjs → score)
+ *   hot      "Der Preis ist heiß": the same, but a guess over the price scores nothing
+ *   higher   is this item dearer or cheaper than the last one?
+ *   sort     four items, cheapest to dearest
+ */
+export const MODES = ['classic', 'hot', 'higher', 'sort'];
+/** Teams: off, or two to four. A team scores its members' average each round. */
+export const TEAM_CHOICES = [0, 2, 3, 4];
+/** Items on the table per round. */
+const PER_ROUND = { classic: 1, hot: 1, higher: 1, sort: 4 };
+/** Sorting four items takes longer: switching to it lifts a shorter timer to this. */
+const SORT_SECONDS = 60;
+/** Items compared with each other (higher or lower, one sort round) are at least this far apart. */
+const APART = 1.1;
 /** Jokers per player and game. A joker scores the round's maximum without a guess. */
 export const JOKER_CHOICES = [0, 1, 2, 3];
 export const COLORS = ['mint', 'purple', 'orange', 'blue', 'pink', 'green', 'yellow', 'beige', 'teal', 'plum'];
@@ -30,8 +50,10 @@ export const LIMITS = {
   startsPerHour: 80,
 };
 
-/** Spare items per game, for the host's "skip". */
+/** Spare items per game, for the host's "skip" (one spare round when sorting). */
 const SPARES = 4;
+/** A few more for the modes that compare prices, since items too close to each other can't sit side by side. */
+const SLACK = 4;
 /** The host's seat passes on after they've been gone this long. */
 const HOST_GRACE = 15_000;
 /** Someone who closed the page in the lobby leaves the list after this. */
@@ -48,6 +70,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   themes: Object.freeze([...THEME_KEYS]),
   showTitle: true,
   jokers: 1,
+  mode: 'classic',
+  teams: 0,
 });
 
 export class GameError extends Error {
@@ -135,6 +159,8 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
       score: 0,
       // Someone joining mid-game gets the game's allowance too.
       jokers: r.settings.jokers,
+      // Someone new joins the smallest team.
+      team: r.settings.teams ? smallestTeam(r, r.settings.teams) : null,
       joined: clock.now(),
       online: 0,
       offlineSince: clock.now(),
@@ -142,6 +168,26 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
     };
     r.players.set(p.id, p);
     return p;
+  }
+
+  /** The team with the fewest players (the first of them on a tie). */
+  function smallestTeam(r, teams) {
+    const sizes = Array(teams).fill(0);
+    for (const p of present(r)) if (p.team !== null && p.team < teams) sizes[p.team]++;
+    return sizes.indexOf(Math.min(...sizes));
+  }
+
+  /** Everyone into teams again, in turn, in the order they joined (or shuffled first). */
+  function spreadTeams(r, shuffled = false) {
+    const teams = r.settings.teams;
+    const people = present(r);
+    if (shuffled) {
+      for (let i = people.length - 1; i > 0; i--) {
+        const j = randomInt(i + 1);
+        [people[i], people[j]] = [people[j], people[i]];
+      }
+    }
+    people.forEach((p, i) => (p.team = teams ? i % teams : null));
   }
 
   function touch(r) {
@@ -170,26 +216,37 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         score: p.score,
         online: p.online > 0,
         jokers: p.jokers,
+        team: p.team,
         // A joker counts as a guess until the reveal, so nobody can tell who played one.
         guessed: Boolean(round && (round.guesses.has(p.id) || round.jokers.has(p.id))),
       })),
+      // The game being played (its mode and teams), from its start to the rematch.
+      game: r.game,
+      teams: r.game?.teams ? r.teamScores : null,
       round: round
         ? {
               n: round.n,
               total: r.queue.length,
               endsAt: round.endsAt,
               skips: r.spares.length,
-              item: {
-                id: round.item.id,
-                title: revealed || r.settings.showTitle ? round.item.title : null,
-                condition: round.item.condition,
-                theme: round.item.theme,
-                images: round.item.images,
-                art: round.item.art,
-              },
+              mode: round.mode,
+              item: round.item ? shown(round.item, revealed || r.settings.showTitle) : null,
+              items: round.items ? round.items.map((item) => shown(item, revealed || r.settings.showTitle)) : null,
+              // The item to beat was revealed the round before (or opens the game): its price shows.
+              anchor: round.anchor ? { ...shown(round.anchor, true), price: round.anchor.price } : null,
             }
           : null,
-      reveal: revealed && round.results ? { price: round.item.price, url: round.item.url, results: round.results } : null,
+      reveal:
+        revealed && round.results
+          ? {
+              price: round.item ? round.item.price : null,
+              url: round.item ? round.item.url : null,
+              // Sorting: the four in their real order, cheapest first.
+              items: round.items ? cheapestFirst(round.items).map((item) => ({ id: item.id, price: item.price, url: item.url })) : null,
+              results: round.results,
+              teams: round.teamPoints,
+            }
+          : null,
       history: r.phase === 'final' ? r.history : [],
       now: clock.now(),
     };
@@ -203,10 +260,25 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
 
   // ---- rounds -----------------------------------------------------------------------------
 
-  function startRound(r, n, item) {
+  /** @param {Item | Item[]} deal  one item, or the four to sort */
+  function startRound(r, n, deal) {
     clock.clearTimeout(r.timer);
     const now = clock.now();
-    r.round = { n, item, startsAt: now, endsAt: now + r.settings.seconds * 1000, guesses: new Map(), jokers: new Set(), results: null };
+    const mode = r.game.mode;
+    r.round = {
+      n,
+      mode,
+      item: Array.isArray(deal) ? null : deal,
+      items: Array.isArray(deal) ? deal : null,
+      // Higher or lower: the first round's item to beat opens the game; after that it's the last round's.
+      anchor: mode === 'higher' ? (n === 1 ? r.anchor : r.queue[n - 2]) : null,
+      startsAt: now,
+      endsAt: now + r.settings.seconds * 1000,
+      guesses: new Map(),
+      jokers: new Set(),
+      results: null,
+      teamPoints: null,
+    };
     r.phase = 'guess';
     r.timer = clock.setTimeout(() => reveal(r), r.settings.seconds * 1000);
   }
@@ -215,34 +287,40 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
     if (r.phase !== 'guess' || !r.round) return;
     clock.clearTimeout(r.timer);
     r.timer = null;
-    const { item, guesses, jokers } = r.round;
+    const round = r.round;
     const results = present(r).map((p) => {
-      const joker = jokers.has(p.id);
-      const guess = joker ? null : (guesses.get(p.id) ?? null);
-      const points = joker ? MAX_POINTS : guess === null ? 0 : score(guess, item.price);
-      p.score += points;
-      return {
-        player: p.id,
-        guess,
-        joker,
-        points,
-        deviation: guess === null ? null : deviation(guess, item.price),
-        bullseye: guess !== null && bullseye(guess, item.price),
-      };
+      const joker = round.jokers.has(p.id);
+      const result = judge(round, joker ? null : (round.guesses.get(p.id) ?? null));
+      if (joker) result.points = MAX_POINTS;
+      p.score += result.points;
+      return { player: p.id, joker, ...result };
     });
     // Real guesses before jokers at equal points: the list ranks how close people got.
     results.sort((a, b) => b.points - a.points || Number(a.joker) - Number(b.joker) || Math.abs(a.deviation ?? 9) - Math.abs(b.deviation ?? 9));
-    r.round.results = results;
-    const best = results.find((x) => x.guess !== null) ?? null;
-    r.history.push({
-      n: r.round.n,
-      title: item.title,
-      price: item.price,
-      url: item.url,
-      art: item.art,
-      image: item.images[0] ?? null,
-      best: best && { player: best.player, guess: best.guess, points: best.points },
-    });
+    round.results = results;
+
+    // The round's best real guess (never a joker): the red highlight, and "closest" in the recap.
+    // Over the price doesn't count in "Der Preis ist heiß"; higher or lower has no single best.
+    const best = round.mode === 'higher' ? null : (results.find((x) => played(x) && !x.over) ?? null);
+    const entry = { n: round.n, mode: round.mode };
+    if (round.items) entry.items = cheapestFirst(round.items).map(recapItem);
+    else Object.assign(entry, recapItem(round.item));
+    if (round.anchor) {
+      entry.anchor = round.anchor.price;
+      entry.right = results.filter((x) => played(x) && x.right).length;
+      entry.picks = results.filter(played).length;
+    }
+    entry.best = best && { player: best.player, guess: best.guess ?? null, pairs: best.pairs ?? null, points: best.points };
+    r.history.push(entry);
+
+    // Teams score their members' average, so a team of two can beat a team of five.
+    if (r.game.teams) {
+      round.teamPoints = Array.from({ length: r.game.teams }, (_, team) => {
+        const members = results.filter((x) => r.players.get(x.player)?.team === team);
+        return members.length ? Math.round(members.reduce((sum, x) => sum + x.points, 0) / members.length) : 0;
+      });
+      round.teamPoints.forEach((points, team) => (r.teamScores[team] += points));
+    }
     r.phase = 'reveal';
     touch(r);
   }
@@ -267,10 +345,11 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
     r.phase = 'loading';
     r.notice = null;
     touch(r);
+    const mode = r.settings.mode;
     let items;
     try {
       items = await source.draw({
-        count: r.settings.rounds + SPARES,
+        count: r.settings.rounds * PER_ROUND[mode] + SPARES + (mode === 'classic' ? 0 : SLACK),
         price: r.settings.price,
         themes: [...r.settings.themes],
         exclude: r.seen,
@@ -283,21 +362,24 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
       return;
     }
     if (!rooms.has(r.code) || r.phase !== 'loading') return;
-    if (items.length < 1) {
+    const deal = dealItems(mode, items, r.settings.rounds);
+    if (!deal) {
       r.phase = 'lobby';
       r.notice = 'items-failed:empty';
       touch(r);
       return;
     }
     for (const item of items) r.seen.add(item.id);
-    // Fewer items than rounds (a narrow filter) makes a shorter game, not a broken one.
-    const rounds = Math.min(r.settings.rounds, items.length);
-    r.queue = items.slice(0, rounds);
-    r.spares = items.slice(rounds);
+    r.game = { mode, teams: r.settings.teams };
+    r.queue = deal.queue;
+    r.spares = deal.spares;
+    r.anchor = deal.anchor;
     r.history = [];
+    r.teamScores = Array(r.game.teams).fill(0);
     for (const p of r.players.values()) {
       p.score = 0;
       p.jokers = r.settings.jokers;
+      if (r.game.teams && !p.left && !(p.team !== null && p.team < r.game.teams)) p.team = smallestTeam(r, r.game.teams);
     }
     startRound(r, 1, r.queue[0]);
     touch(r);
@@ -341,6 +423,9 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         spares: [],
         round: null,
         history: [],
+        game: null,
+        anchor: null,
+        teamScores: [],
         seen: new Set(),
         notice: null,
         timer: null,
@@ -426,7 +511,10 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         case 'settings': {
           requireHost(r, p);
           requirePhase(r, 'lobby', 'final');
+          const teams = r.settings.teams;
           r.settings = mergeSettings(r.settings, body);
+          // New teams in the lobby; after a game they wait for the rematch, so the results stay put.
+          if (r.phase === 'lobby' && r.settings.teams !== teams) spreadTeams(r);
           r.notice = null;
           touch(r);
           return;
@@ -439,11 +527,8 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         }
         case 'guess': {
           requirePhase(r, 'guess');
-          if (r.round.guesses.has(p.id)) throw new GameError('already-guessed', 409);
-          const value = Number(body.value);
-          if (!Number.isFinite(value) || value <= 0 || value > LIMITS.guess) throw new GameError('guess');
-          if (r.round.jokers.has(p.id)) throw new GameError('already-guessed', 409);
-          r.round.guesses.set(p.id, Math.round(value * 100) / 100);
+          if (r.round.guesses.has(p.id) || r.round.jokers.has(p.id)) throw new GameError('already-guessed', 409);
+          r.round.guesses.set(p.id, readGuess(r.round, body));
           touch(r);
           maybeReveal(r);
           return;
@@ -461,7 +546,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         case 'skip': {
           requireHost(r, p);
           requirePhase(r, 'guess');
-          const next = r.spares.shift();
+          const next = takeSpare(r);
           if (!next) throw new GameError('no-spares', 409);
           // A joker played on the skipped item goes back to its player.
           for (const id of r.round.jokers) {
@@ -489,10 +574,30 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
           r.phase = 'lobby';
           r.round = null;
           r.history = [];
+          if (r.settings.teams !== r.game?.teams) spreadTeams(r);
+          r.game = null;
+          r.teamScores = [];
           for (const q of r.players.values()) {
             q.score = 0;
             q.jokers = r.settings.jokers;
           }
+          touch(r);
+          return;
+        }
+        case 'team': {
+          // Anyone picks their own team in the lobby.
+          requirePhase(r, 'lobby');
+          const team = body.team;
+          if (!r.settings.teams || !Number.isInteger(team) || team < 0 || team >= r.settings.teams) throw new GameError('team');
+          p.team = team;
+          touch(r);
+          return;
+        }
+        case 'shuffle': {
+          requireHost(r, p);
+          requirePhase(r, 'lobby');
+          if (!r.settings.teams) throw new GameError('team');
+          spreadTeams(r, true);
           touch(r);
           return;
         }
@@ -564,6 +669,148 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
     touch(r);
     maybeReveal(r);
   }
+
+  /** An item as the players see it: no price, and the title only when it's allowed to show. */
+  function shown(item, title) {
+    return { id: item.id, title: title ? item.title : null, condition: item.condition, theme: item.theme, images: item.images, art: item.art };
+  }
+
+  /**
+   * The next spare for a skip. Higher or lower takes one far enough from the item to beat and
+   * from the next round's item (whose item to beat it becomes).
+   */
+  function takeSpare(r) {
+    if (r.round.mode === 'higher' && r.spares.length) {
+      const near = [r.round.anchor, r.queue[r.round.n]].filter(Boolean);
+      let i = r.spares.findIndex((item) => near.every((other) => apart(item.price, other.price)));
+      if (i === -1) i = r.spares.findIndex((item) => apart(item.price, r.round.anchor.price));
+      return r.spares.splice(Math.max(0, i), 1)[0];
+    }
+    return r.spares.shift();
+  }
+}
+
+/**
+ * What one player's move scores in a round (a joker's points are set by the caller).
+ * @param {any} round  @param {any} guess  the stored guess, or null for none
+ */
+function judge(round, guess) {
+  switch (round.mode) {
+    case 'higher': {
+      const points = guess === null ? 0 : scorePick(guess, round.anchor.price, round.item.price);
+      return { pick: guess, right: guess === null ? null : points > 0, points };
+    }
+    case 'sort': {
+      if (guess === null) return { order: null, pairs: null, points: 0 };
+      const { pairs, points } = scoreOrder(guess, new Map(round.items.map((item) => [item.id, item.price])));
+      return { order: guess, pairs, points };
+    }
+    case 'hot': {
+      const price = round.item.price;
+      if (guess === null) return { guess, points: 0, deviation: null, bullseye: false, over: false };
+      const over = guess > price;
+      return { guess, points: scoreUnder(guess, price), deviation: deviation(guess, price), bullseye: !over && bullseye(guess, price), over };
+    }
+    default: {
+      const price = round.item.price;
+      if (guess === null) return { guess, points: 0, deviation: null, bullseye: false };
+      return { guess, points: score(guess, price), deviation: deviation(guess, price), bullseye: bullseye(guess, price) };
+    }
+  }
+}
+
+/** A guess as the round's mode takes it; GameError('guess') for anything else. */
+function readGuess(round, body) {
+  switch (round.mode) {
+    case 'higher':
+      if (body?.pick !== 'higher' && body?.pick !== 'lower') throw new GameError('guess');
+      return body.pick;
+    case 'sort': {
+      const ids = round.items.map((item) => item.id);
+      const order = body?.order;
+      if (!Array.isArray(order) || order.length !== ids.length || new Set(order).size !== ids.length || !order.every((id) => ids.includes(id))) {
+        throw new GameError('guess');
+      }
+      return [...order];
+    }
+    default: {
+      const value = Number(body?.value);
+      if (!Number.isFinite(value) || value <= 0 || value > LIMITS.guess) throw new GameError('guess');
+      return Math.round(value * 100) / 100;
+    }
+  }
+}
+
+/** A result that guessed something (not a joker, not a miss). */
+function played(result) {
+  return !result.joker && (result.guess ?? result.pick ?? result.order ?? null) !== null;
+}
+
+function apart(a, b) {
+  return Math.max(a, b) / Math.min(a, b) >= APART;
+}
+
+function cheapestFirst(items) {
+  return [...items].sort((a, b) => a.price - b.price);
+}
+
+function recapItem(item) {
+  return { title: item.title, price: item.price, url: item.url, art: item.art, image: item.images[0] ?? null };
+}
+
+/**
+ * The drawn items laid out as a game: the rounds' items in order, the spares for skips, and for
+ * higher or lower the item that opens the game. Fewer items than rounds makes a shorter game;
+ * null when not even one round fits.
+ *
+ * @param {string} mode  @param {Item[]} items  @param {number} rounds
+ * @returns {{ queue: Array<Item | Item[]>, spares: Array<Item | Item[]>, anchor: Item | null } | null}
+ */
+export function dealItems(mode, items, rounds) {
+  if (mode === 'sort') {
+    const groups = groupItems(items, PER_ROUND.sort);
+    if (!groups.length) return null;
+    const n = Math.min(rounds, groups.length);
+    return { queue: groups.slice(0, n), spares: groups.slice(n), anchor: null };
+  }
+  if (mode === 'higher') {
+    const { chain, rest } = chainItems(items);
+    if (chain.length < 2) return null;
+    const n = Math.min(rounds, chain.length - 1);
+    return { anchor: chain[0], queue: chain.slice(1, n + 1), spares: [...chain.slice(n + 1), ...rest] };
+  }
+  if (!items.length) return null;
+  const n = Math.min(rounds, items.length);
+  return { queue: items.slice(0, n), spares: items.slice(n), anchor: null };
+}
+
+/** Items in an order where each one's price is at least APART from the one before. */
+export function chainItems(items) {
+  const pool = [...items];
+  const chain = [];
+  while (pool.length) {
+    const last = chain.at(-1);
+    const i = last ? pool.findIndex((item) => apart(item.price, last.price)) : 0;
+    if (i === -1) break;
+    chain.push(pool.splice(i, 1)[0]);
+  }
+  return { chain, rest: pool };
+}
+
+/** Groups of `size` whose prices are all at least APART from each other; leftovers are dropped. */
+export function groupItems(items, size) {
+  const pool = [...items];
+  const groups = [];
+  while (pool.length >= size) {
+    const group = [];
+    for (let i = 0; i < pool.length && group.length < size; ) {
+      if (group.every((other) => apart(other.price, pool[i].price))) group.push(pool.splice(i, 1)[0]);
+      else i++;
+    }
+    if (group.length < size) break;
+    groups.push(group);
+  }
+  return groups;
 }
 
 /**
@@ -590,6 +837,12 @@ export function mergeSettings(current, body) {
   if (isPriceRange(body?.price)) next.price = body.price;
   if (typeof body?.showTitle === 'boolean') next.showTitle = body.showTitle;
   if (JOKER_CHOICES.includes(body?.jokers)) next.jokers = body.jokers;
+  if (MODES.includes(body?.mode)) next.mode = body.mode;
+  if (TEAM_CHOICES.includes(body?.teams)) next.teams = body.teams;
+  // Sorting four items takes longer: switching to it lifts a short timer, unless the change sets one.
+  if (next.mode === 'sort' && current.mode !== 'sort' && !SECOND_CHOICES.includes(body?.seconds) && next.seconds < SORT_SECONDS) {
+    next.seconds = SORT_SECONDS;
+  }
   // Any selection, none included: the host picks freely, and a game only starts with one or more.
   if (Array.isArray(body?.themes)) next.themes = THEME_KEYS.filter((key) => body.themes.includes(key) && isTheme(key));
   return next;
@@ -605,10 +858,13 @@ export function mergeSettings(current, body) {
  * @property {Map<string, any>} players
  * @property {any} settings
  * @property {'lobby' | 'loading' | 'guess' | 'reveal' | 'final'} phase
- * @property {Item[]} queue
- * @property {Item[]} spares
+ * @property {Array<Item | Item[]>} queue
+ * @property {Array<Item | Item[]>} spares
  * @property {any} round
  * @property {any[]} history
+ * @property {{ mode: string, teams: number } | null} game  the game being played, from its start to the rematch
+ * @property {Item | null} anchor  higher or lower: the item that opens the game
+ * @property {number[]} teamScores
  * @property {Set<string>} seen
  * @property {string | null} notice
  * @property {any} timer

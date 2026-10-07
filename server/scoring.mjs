@@ -26,3 +26,50 @@ export function deviation(guess, price) {
 export function bullseye(guess, price) {
   return Math.abs(deviation(guess, price)) <= BULLSEYE;
 }
+
+// ---- the other modes ------------------------------------------------------------------------
+
+/**
+ * "Der Preis ist heiß": the same ratio, but a guess over the price scores nothing.
+ * @param {number} guess  @param {number} price
+ */
+export function scoreUnder(guess, price) {
+  return guess > price ? 0 : score(guess, price);
+}
+
+/**
+ * Higher or lower: is this item dearer or cheaper than the last one? Right scores 500, plus up to
+ * 500 more the closer the two prices are (a call between 40 € and 44 € is harder than between
+ * 40 € and 400 €); prices 8× apart or more add nothing. Wrong scores 0. Equal prices: both are right.
+ *
+ *   points = 500 + 500 × max(0, 1 − |log₂(price / anchor)| / 3)
+ *
+ * @param {'higher' | 'lower'} pick  @param {number} anchor  the last item's price  @param {number} price
+ */
+export function scorePick(pick, anchor, price) {
+  if (!(anchor > 0) || !(price > 0)) return 0;
+  const right = price === anchor || (pick === 'higher') === price > anchor;
+  if (!right) return 0;
+  const apart = Math.abs(Math.log2(price / anchor));
+  return Math.round(MAX_POINTS / 2 + (MAX_POINTS / 2) * Math.max(0, 1 - apart / 3));
+}
+
+/**
+ * Sorting: four items from cheapest to dearest. Each of the six pairs in the right order is a
+ * sixth of the points, so one swap of neighbours still scores 833. Equal prices count either way.
+ *
+ * @param {string[]} order  item ids, cheapest first, as the player put them
+ * @param {Map<string, number>} prices  item id → price
+ * @returns {{ pairs: number, of: number, points: number }}
+ */
+export function scoreOrder(order, prices) {
+  let pairs = 0;
+  let of = 0;
+  for (let i = 0; i < order.length; i++) {
+    for (let j = i + 1; j < order.length; j++) {
+      of++;
+      if (prices.get(order[i]) <= prices.get(order[j])) pairs++;
+    }
+  }
+  return { pairs, of, points: of ? Math.round((MAX_POINTS * pairs) / of) : 0 };
+}
