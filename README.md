@@ -12,6 +12,9 @@ spirit of [guess-the-price.net](https://guess-the-price.net/). Live at
 - **Start a game, share the link.** A room gets a four-letter code (no vowels, so no code spells a
   word) and a link like `schaetzle.ewolution.cloud/KXPT`, with a QR code for the meeting room's
   screen. No accounts: a name is enough, and a reload or a locked phone puts you back in your seat.
+- **Avatars:** beside the name, a tap on the avatar opens 80 emoji to pick from (animals, food, things,
+  nature, faces), shown on the player's colour everywhere they appear. Without one it's the name's
+  initial. The device remembers the pick, and it can be changed in the lobby by tapping your own.
 - **Four modes**, picked in the lobby:
   - **Guess the price** (*Schätzen*): the classic, scored by the ratio (below).
   - **Don't go over** (*Der Preis ist heiß*): the same, but a guess over the price scores nothing,
@@ -167,8 +170,9 @@ server/items/             ebay.mjs (live), mock.mjs (demo), themes.mjs (keywords
 server/census.mjs         forwards /_e.js and /_e to Census (visit counts)
 src/lib/room.svelte.ts    the live room: the stream, reconnects, moves
 src/lib/price.ts          reading and showing prices (5,80€)
+src/lib/avatars.ts        the emoji the avatar picker offers (the server takes any single emoji)
 src/components/           Home, Join, Game → Lobby, Round, Reveal, Final; Screen (the big screen);
-                          SortBoard, Anchor, TeamBoard, PriceTag, PriceLine, Media, Thumb, Qr
+                          AvatarButton, SortBoard, Anchor, TeamBoard, PriceTag, PriceLine, Media, Thumb, Qr
 public/sw.js              offline shell (never the game's /api/ or /img/)
 brand/                    the mark and app icons (public/icons/ is rendered from them)
 vendor/ewo/               Folio's tokens, fonts and elements (npm run vendor -- schaetzle in Folio)

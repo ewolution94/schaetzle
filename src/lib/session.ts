@@ -1,10 +1,11 @@
-// What a device remembers: the name you play under, and your seat in each room (so a reload, or
+// What a device remembers: the name and avatar you play under, and your seat in each room (so a reload, or
 // the phone locking mid-game, puts you back in the same seat with your score). Storage can be
 // blocked; then nothing is remembered and everything still works.
 
 import type { Seat } from './api';
 
 const NAME = 'schaetzle:name';
+const EMOJI = 'schaetzle:emoji';
 const SEAT = 'schaetzle:seat:';
 
 function read(key: string) {
@@ -26,6 +27,9 @@ function write(key: string, value: string | null) {
 
 export const savedName = () => read(NAME) ?? '';
 export const saveName = (name: string) => write(NAME, name.trim() || null);
+/** The avatar's emoji, or null for the name's initial. */
+export const savedEmoji = () => read(EMOJI) || null;
+export const saveEmoji = (emoji: string | null) => write(EMOJI, emoji);
 
 export function savedSeat(code: string): Seat | null {
   try {

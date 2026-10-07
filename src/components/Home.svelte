@@ -1,7 +1,8 @@
 <script lang="ts">
   import { api, ApiError, CODE, type Seat } from '../lib/api';
   import { errorText, t } from '../lib/i18n.svelte';
-  import { savedName } from '../lib/session';
+  import { saveEmoji, savedEmoji, savedName } from '../lib/session';
+  import AvatarButton from './AvatarButton.svelte';
   import PriceTag from './PriceTag.svelte';
 
   let {
@@ -11,6 +12,7 @@
   }: { demo: boolean; oncreate: (seat: Seat, name: string) => void; onjoin: (code: string) => void } = $props();
 
   let name = $state(savedName());
+  let emoji = $state(savedEmoji());
   let code = $state('');
   let busy = $state(false);
   let error = $state('');
@@ -27,7 +29,7 @@
     busy = true;
     error = '';
     try {
-      oncreate(await api.create(name.trim()), name.trim());
+      oncreate(await api.create(name.trim(), emoji), name.trim());
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
     } finally {
@@ -54,15 +56,24 @@
 
   <form class="create" onsubmit={create}>
     <label class="label" for="name">{t('yourName')}</label>
-    <input
-      id="name"
-      class="input"
-      bind:value={name}
-      maxlength="24"
-      autocomplete="nickname"
-      enterkeyhint="go"
-      placeholder={t('namePlaceholder')}
-    />
+    <div class="you">
+      <AvatarButton
+        player={{ name, color: '', emoji }}
+        onpick={(next) => {
+          emoji = next;
+          saveEmoji(next);
+        }}
+      />
+      <input
+        id="name"
+        class="input"
+        bind:value={name}
+        maxlength="24"
+        autocomplete="nickname"
+        enterkeyhint="go"
+        placeholder={t('namePlaceholder')}
+      />
+    </div>
     <button class="btn primary block" disabled={busy}>{t('newGame')}</button>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </form>
@@ -125,9 +136,17 @@
     flex-direction: column;
     gap: 10px;
   }
-  .row {
+  .row,
+  .you {
     display: flex;
     gap: 10px;
+  }
+  .you {
+    align-items: center;
+  }
+  .you .input {
+    flex: 1;
+    min-width: 0;
   }
   .code {
     flex: 1;

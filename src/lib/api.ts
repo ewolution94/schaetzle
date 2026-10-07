@@ -25,6 +25,8 @@ export interface Player {
   id: string;
   name: string;
   color: string;
+  /** The avatar: an emoji on their colour, or null for their name's initial. */
+  emoji: string | null;
   score: number;
   online: boolean;
   /** Guessed, or played a joker (the two look the same until the reveal). */
@@ -178,9 +180,9 @@ const post = (body: unknown, token?: string): RequestInit => ({
 
 export const api = {
   config: () => request<Config>('/api/config'),
-  create: (name: string) => request<Seat>('/api/rooms', post({ name })),
+  create: (name: string, emoji: string | null) => request<Seat>('/api/rooms', post({ name, emoji })),
   info: (code: string) => request<{ code: string; phase: Phase; players: number; full: boolean; demo: boolean }>(`/api/rooms/${code}`),
-  join: (code: string, name: string, token?: string) => request<Seat>(`/api/rooms/${code}/join`, post({ name, token })),
+  join: (code: string, name: string, emoji: string | null, token?: string) => request<Seat>(`/api/rooms/${code}/join`, post({ name, emoji, token })),
   act: (seat: Seat, action: string, body?: unknown) => request<void>(`/api/rooms/${seat.code}/${action}`, post(body, seat.token)),
 };
 

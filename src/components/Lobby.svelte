@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { Mode, Player, PriceRange, Settings, Theme, View } from '../lib/api';
   import { t, type Key } from '../lib/i18n.svelte';
+  import { saveEmoji } from '../lib/session';
   import Avatar from './Avatar.svelte';
+  import AvatarButton from './AvatarButton.svelte';
   import Qr from './Qr.svelte';
 
   let {
@@ -55,6 +57,19 @@
     const left = keys.filter((key) => !same(server[key], pending[key]));
     if (left.length !== keys.length) pending = Object.fromEntries(left.map((key) => [key, pending[key]]));
   });
+
+  // Your own avatar changes the moment you pick one (and this device keeps it for the next game);
+  // the server's view takes over once it agrees, and a refusal puts the old one back.
+  let myEmoji: string | null | undefined = $state(undefined);
+  $effect(() => {
+    if (myEmoji !== undefined && me.emoji === myEmoji) myEmoji = undefined;
+  });
+
+  async function pickEmoji(emoji: string | null) {
+    myEmoji = emoji;
+    saveEmoji(emoji);
+    if (!(await act('avatar', { emoji }))) myEmoji = undefined;
+  }
 
   /** The theme pills toggle freely, any number of them; a game needs at least one. */
   function toggleTheme(theme: Theme) {
@@ -143,7 +158,11 @@
 
   {#snippet person(player: Player)}
     <li class:offline={!player.online}>
-      <Avatar {player} size={34} dim={!player.online} />
+      {#if player.id === me.id}
+        <AvatarButton player={myEmoji === undefined ? player : { ...player, emoji: myEmoji }} size={34} onpick={pickEmoji} />
+      {:else}
+        <Avatar {player} size={34} dim={!player.online} />
+      {/if}
       <span class="name">
         {player.name}
         {#if player.id === me.id}<span class="you">({t('you')})</span>{/if}

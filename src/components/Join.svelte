@@ -2,13 +2,15 @@
   import { onMount } from 'svelte';
   import { api, ApiError, type Phase, type Seat } from '../lib/api';
   import { errorText, t } from '../lib/i18n.svelte';
-  import { savedName } from '../lib/session';
+  import { saveEmoji, savedEmoji, savedName } from '../lib/session';
+  import AvatarButton from './AvatarButton.svelte';
 
   let { code, onjoin, onback }: { code: string; onjoin: (seat: Seat, name: string) => void; onback: () => void } = $props();
 
   let info: { phase: Phase; players: number; full: boolean } | null = $state(null);
   let missing = $state(false);
   let name = $state(savedName());
+  let emoji = $state(savedEmoji());
   let busy = $state(false);
   let error = $state('');
   let input: HTMLInputElement | undefined = $state();
@@ -36,7 +38,7 @@
     busy = true;
     error = '';
     try {
-      onjoin(await api.join(code, name.trim()), name.trim());
+      onjoin(await api.join(code, name.trim(), emoji), name.trim());
     } catch (e) {
       const reason = e instanceof ApiError ? e.code : 'other';
       if (reason === 'no-room') missing = true;
@@ -62,16 +64,25 @@
     {/if}
     <form onsubmit={submit}>
       <label class="label" for="join-name">{t('yourName')}</label>
-      <input
-        id="join-name"
-        class="input"
-        bind:this={input}
-        bind:value={name}
-        maxlength="24"
-        autocomplete="nickname"
-        enterkeyhint="go"
-        placeholder={t('namePlaceholder')}
-      />
+      <div class="you">
+        <AvatarButton
+          player={{ name, color: '', emoji }}
+          onpick={(next) => {
+            emoji = next;
+            saveEmoji(next);
+          }}
+        />
+        <input
+          id="join-name"
+          class="input"
+          bind:this={input}
+          bind:value={name}
+          maxlength="24"
+          autocomplete="nickname"
+          enterkeyhint="go"
+          placeholder={t('namePlaceholder')}
+        />
+      </div>
       <button class="btn primary block" disabled={busy || info?.full}>{t('join')}</button>
       {#if info?.full}<p class="error">{t('error:room-full')}</p>{/if}
       {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -110,6 +121,15 @@
     flex-direction: column;
     gap: 10px;
     text-align: left;
+  }
+  .you {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .you .input {
+    flex: 1;
+    min-width: 0;
   }
   .quiet {
     align-self: center;

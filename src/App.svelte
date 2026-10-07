@@ -65,7 +65,7 @@
     if (!seat) return;
     reclaiming = true;
     try {
-      enter(await api.join(c, '', seat.token));
+      enter(await api.join(c, '', null, seat.token));
     } catch (error) {
       if (error instanceof ApiError && error.code !== 'offline') forgetSeat(c);
     } finally {

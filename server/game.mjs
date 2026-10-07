@@ -142,7 +142,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
     return [...r.players.values()].filter((p) => !p.left);
   }
 
-  function addPlayer(r, rawName) {
+  function addPlayer(r, rawName, rawEmoji) {
     if (present(r).length >= LIMITS.players) throw new GameError('room-full', 409);
     const base = cleanName(rawName);
     if (!base) throw new GameError('name');
@@ -156,6 +156,8 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
       token: randomBytes(18).toString('base64url'),
       name,
       color,
+      // The avatar: an emoji on the player's colour, or null for the name's initial.
+      emoji: cleanEmoji(rawEmoji),
       score: 0,
       // Someone joining mid-game gets the game's allowance too.
       jokers: r.settings.jokers,
@@ -213,6 +215,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         id: p.id,
         name: p.name,
         color: p.color,
+        emoji: p.emoji,
         score: p.score,
         online: p.online > 0,
         jokers: p.jokers,
@@ -404,8 +407,8 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
       return rooms.size;
     },
 
-    /** @param {{ name: unknown }} body */
-    create({ name }) {
+    /** @param {{ name: unknown, emoji?: unknown }} body */
+    create({ name, emoji }) {
       if (!cleanName(name)) throw new GameError('name');
       if (rooms.size >= LIMITS.rooms || !within(created, 10 * 60_000, LIMITS.roomsPer10Min)) throw new GameError('busy', 429);
       const code = newCode();
@@ -432,7 +435,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         subscribers: new Set(),
       };
       rooms.set(code, r);
-      const p = addPlayer(r, name);
+      const p = addPlayer(r, name, emoji);
       r.host = p.id;
       return { code, player: p.id, token: p.token };
     },
@@ -448,9 +451,9 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
      * Joins, or comes back: a known token gets the same seat (and score) again. A token alone that
      * no longer fits (kicked, or dropped from the lobby) is refused, so a reload doesn't sneak a
      * removed player back in under a new seat; they join again with their name.
-     * @param {{ name?: unknown, token?: unknown }} body
+     * @param {{ name?: unknown, emoji?: unknown, token?: unknown }} body
      */
-    join(code, { name, token }) {
+    join(code, { name, emoji, token }) {
       const r = room(code);
       if (typeof token === 'string' && token) {
         for (const p of r.players.values()) {
@@ -458,7 +461,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         }
         if (!cleanName(name)) throw new GameError('no-player', 401);
       }
-      const p = addPlayer(r, name);
+      const p = addPlayer(r, name, emoji);
       touch(r);
       return { code: r.code, player: p.id, token: p.token };
     },
@@ -590,6 +593,12 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
           const team = body.team;
           if (!r.settings.teams || !Number.isInteger(team) || team < 0 || team >= r.settings.teams) throw new GameError('team');
           p.team = team;
+          touch(r);
+          return;
+        }
+        case 'avatar': {
+          // Anyone changes their own avatar, at any time; anything but one emoji means the initial.
+          p.emoji = cleanEmoji(body.emoji);
           touch(r);
           return;
         }
@@ -827,6 +836,20 @@ export function cleanName(raw) {
     .trim();
   const graphemes = [...new Intl.Segmenter('de', { granularity: 'grapheme' }).segment(text)].map((s) => s.segment);
   return graphemes.slice(0, LIMITS.name).join('').trim();
+}
+
+/**
+ * An avatar: exactly one emoji (a pictograph with its modifiers and joiners, or a flag), else null.
+ * The client offers a list, but any single emoji is fine here.
+ */
+export function cleanEmoji(raw) {
+  if (typeof raw !== 'string' || raw.length > 32) return null;
+  const text = raw.normalize('NFC').trim();
+  const graphemes = [...new Intl.Segmenter('de', { granularity: 'grapheme' }).segment(text)];
+  if (graphemes.length !== 1) return null;
+  const pictograph = /^\p{Extended_Pictographic}[\p{Extended_Pictographic}\p{Emoji_Modifier}\u200D\uFE0F\u20E3\u{E0020}-\u{E007F}]*$/u;
+  const flag = /^\p{Regional_Indicator}{2}$/u;
+  return pictograph.test(text) || flag.test(text) ? text : null;
 }
 
 /** The settings with a host's changes applied; anything invalid is ignored. */

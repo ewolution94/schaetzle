@@ -1,13 +1,20 @@
 <script lang="ts">
   import type { Player } from '../lib/api';
 
-  let { player, size = 32, check = false, dim = false }: { player: Pick<Player, 'name' | 'color'>; size?: number; check?: boolean; dim?: boolean } = $props();
+  // Without a colour (picking one before joining, when the server hasn't handed one out yet) it's
+  // drawn plain, on the card's grey.
+  let {
+    player,
+    size = 32,
+    check = false,
+    dim = false,
+  }: { player: Pick<Player, 'name' | 'color' | 'emoji'>; size?: number; check?: boolean; dim?: boolean } = $props();
 
-  const initial = $derived([...new Intl.Segmenter('de', { granularity: 'grapheme' }).segment(player.name)][0]?.segment.toUpperCase() ?? '?');
+  const initial = $derived([...new Intl.Segmenter('de', { granularity: 'grapheme' }).segment(player.name.trim())][0]?.segment.toUpperCase() ?? '?');
 </script>
 
-<span class="avatar c-{player.color}" class:dim style:--size="{size}px" aria-hidden="true">
-  {initial}
+<span class="avatar {player.color ? `c-${player.color}` : 'plain'}" class:dim style:--size="{size}px" aria-hidden="true">
+  {#if player.emoji}<span class="emoji">{player.emoji}</span>{:else}{initial}{/if}
   {#if check}
     <svg class="check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" /><path d="M4.6 8.3l2.2 2.2 4.6-4.8" /></svg>
   {/if}
@@ -26,6 +33,14 @@
     color: var(--otto-ink);
     font: 700 calc(var(--size) * 0.44) / 1 var(--ewo-sans);
     transition: opacity var(--ewo-dur-2);
+  }
+  .plain {
+    background: var(--surface-2);
+    color: var(--ewo-fg);
+    box-shadow: inset 0 0 0 1px var(--ewo-line-strong);
+  }
+  .emoji {
+    font: calc(var(--size) * 0.56) / 1 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   }
   .dim {
     opacity: 0.4;
