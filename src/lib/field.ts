@@ -44,7 +44,7 @@ export function startField(canvas: HTMLCanvasElement) {
     const theme = document.documentElement.dataset.theme ?? (dark.matches ? 'dark' : 'light');
     light = theme === 'light';
     // A quiet texture, not a pattern (the user: "too intense"; Atrium's field uses the same numbers).
-    base = light ? 0.07 : 0.05;
+    base = light ? 0.045 : 0.035;
   }
 
   function resize() {
@@ -102,13 +102,13 @@ export function startField(canvas: HTMLCanvasElement) {
 
         if (w > 0.06) {
           ctx!.fillStyle = wave!.colors[n % wave!.colors.length];
-          ctx!.globalAlpha = Math.min(1, 0.1 + 0.67 * w);
+          ctx!.globalAlpha = Math.min(1, 0.075 + 0.5 * w);
         } else if (k > 0.04 && tint) {
           ctx!.fillStyle = tint;
-          ctx!.globalAlpha = Math.min(1, 0.15 + 0.8 * k);
+          ctx!.globalAlpha = Math.min(1, 0.1 + 0.6 * k);
         } else {
           ctx!.fillStyle = ink;
-          ctx!.globalAlpha = base + 0.3 * k;
+          ctx!.globalAlpha = base + 0.22 * k;
         }
         ctx!.fillRect(x + ox - size, y + oy - size, size * 2, size * 2);
       }
