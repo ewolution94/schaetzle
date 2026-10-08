@@ -2,18 +2,7 @@
 var e = "#22201c", t = "#ffffff", n = "#c8322b", r = "#1d1b19", i = (e, t) => ({
 	de: e,
 	en: t
-}), a = [
-	[i("Trench", "Trench"), "#c9ac78"],
-	[i("Grau", "Grey"), "#8e9196"],
-	[i("Anthrazit", "Charcoal"), "#45474c"],
-	[i("Marine", "Navy"), "#2f3f66"],
-	[i("Oliv", "Olive"), "#6d7243"],
-	[i("Bordeaux", "Burgundy"), "#7a2b33"],
-	[i("Grünstift", "Green"), "#2e7a56"],
-	[i("Kopierstift", "Violet"), "#6a3fa6"],
-	[i("Senf", "Mustard"), "#c99a2e"],
-	[i("Rost", "Rust"), "#a5532f"]
-], o = [
+}), a = "#45474c", o = [
 	[i("Hell", "Light"), "#f3d5b8"],
 	[i("Pfirsich", "Peach"), "#e6b48f"],
 	[i("Warm", "Warm"), "#c98e62"],
@@ -76,15 +65,15 @@ var h = "#3b2a20", g = [
 	[i("Zu", "Closed"), ({ k: e }, t) => c(`M${t - 3.5} ${p}Q${t} 53 ${t + 3.5} ${p}`, "none", e, 2.2)]
 ], v = [
 	[i("ohne", "none"), () => ({})],
-	[i("Sonnenbrille", "Sunglasses"), () => ({
+	[i("Sonnenbrille", "Sunglasses"), ({ k: e }) => ({
 		cover: "both",
 		face: c("M35 46.5H48.5L47.5 53.5C46.5 55 37.5 55 36.5 53.5Z", r, e, 1.4) + c("M51.5 46.5H65L63.5 53.5C62.5 55 53.5 55 52.5 53.5Z", r, e, 1.4) + c("M48.5 48H51.5M35 47L33 46M65 47L67 46", "none", e, 1.6) + c("M38 48.5L41 48", "none", "rgba(255,255,255,.7)", 1.2) + c("M54.5 48.5L57.5 48", "none", "rgba(255,255,255,.7)", 1.2)
 	})],
 	[i("Monokel", "Monocle"), ({ k: e }) => ({ face: l(f, p, 5.6, "rgba(255,255,255,.25)", e, 1.8) + c("M61 54C66 62 62 70 58 77", "none", "#b88a2e", 1.2) })],
 	[i("Brille", "Glasses"), ({ k: e }) => ({ face: l(d, p, 5, "none", e, 1.9) + l(f, p, 5, "none", e, 1.9) + c("M48 49.5Q50 47.5 52 49.5", "none", e, 1.7) })],
-	[i("Augenklappe", "Eye patch"), () => ({
+	[i("Augenklappe", "Eye patch"), ({ k: t }) => ({
 		cover: "left",
-		face: c("M34.5 37L60 35", "none", e, 1.6) + c("M38.4 46.4H47.6L46.6 53.4C45 55.2 41 55.2 39.4 53.4Z", e, e, 1.2)
+		face: c("M34.5 37L60 35", "none", t, 1.6) + c("M38.4 46.4H47.6L46.6 53.4C45 55.2 41 55.2 39.4 53.4Z", e, t, 1.2)
 	})],
 	[i("Nasenbrille", "Nose glasses"), ({ k: t }) => ({
 		nose: !1,
@@ -133,33 +122,29 @@ var h = "#3b2a20", g = [
 			options: x(b)
 		},
 		{
-			name: i("Farbe", "Colour"),
-			options: x(a)
-		},
-		{
 			name: i("Haut", "Skin"),
 			options: x(o)
 		}
 	],
 	svg(t, { mood: n = "" } = {}) {
-		let [r, i, s, l, p, m] = t, h = a[p]?.[1] ?? a[0][1], y = o[m]?.[1] ?? o[0][1], x = m === 5 ? "#fbf7ec" : e, S = {
-			c: h,
-			s: y,
-			k: x
-		}, C = g[r]?.[1](S) ?? {}, w = v[s]?.[1](S) ?? {}, T = n === "happy" ? 7 : i, E = (w.cover === "both" ? [] : w.cover === "left" ? [["r", f]] : [["l", d], ["r", f]]).map(([e, t]) => _[T]?.[1](S, t, e) ?? "").join(""), D = n === "happy" ? c("M45 62.5Q50 67 55 62.5", "none", x, 2.2) : c("M46.5 63.5H53.5", "none", x, 2);
+		let [r, i, s, l, p] = t, m = a, h = o[p]?.[1] ?? o[0][1], y = p === 5 ? "#fbf7ec" : e, x = {
+			c: m,
+			s: h,
+			k: y
+		}, S = g[r]?.[1](x) ?? {}, C = v[s]?.[1](x) ?? {}, w = n === "happy" ? 7 : i, T = (C.cover === "both" ? [] : C.cover === "left" ? [["r", f]] : [["l", d], ["r", f]]).map(([e, t]) => _[w]?.[1](x, t, e) ?? "").join(""), E = n === "happy" ? c("M45 62.5Q50 67 55 62.5", "none", y, 2.2) : c("M46.5 63.5H53.5", "none", y, 2);
 		return `<svg viewBox="0 0 100 100" aria-hidden="true"><g transform="translate(50 60) scale(1.2) translate(-50 -60)">${[
-			C.back ?? "",
-			c("M8 101C10 85 26 77.5 50 77.5C74 77.5 90 85 92 101Z", h),
-			c("M43.5 66V79H56.5V66Z", y, e, 2.2),
-			b[l]?.[1](S) ?? "",
-			u(33.8, 53.5, 3.2, 4.6, y),
-			u(66.2, 53.5, 3.2, 4.6, y),
-			u(50, 51, 16.5, 19.5, y),
-			C.front ?? "",
-			E,
-			w.nose === !1 ? "" : c("M50 52.5L48.3 58H51.6", "none", x, 1.6),
-			w.mouth === !1 ? "" : D,
-			w.face ?? ""
+			S.back ?? "",
+			c("M8 101C10 85 26 77.5 50 77.5C74 77.5 90 85 92 101Z", m),
+			c("M43.5 66V79H56.5V66Z", h, e, 2.2),
+			b[l]?.[1](x) ?? "",
+			u(33.8, 53.5, 3.2, 4.6, h),
+			u(66.2, 53.5, 3.2, 4.6, h),
+			u(50, 51, 16.5, 19.5, h),
+			S.front ?? "",
+			T,
+			C.nose === !1 ? "" : c("M50 52.5L48.3 58H51.6", "none", y, 1.6),
+			C.mouth === !1 ? "" : E,
+			C.face ?? ""
 		].join("")}</g></svg>`;
 	},
 	fromSeed(e) {
@@ -168,7 +153,6 @@ var h = "#3b2a20", g = [
 			(e >>> 15) % 8,
 			(e >>> 19) % 10,
 			(e >>> 22) % 8,
-			(e >>> 4) % 10,
 			(e >>> 26) % 6
 		];
 	}

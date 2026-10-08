@@ -116,6 +116,7 @@ var f = {
   .rolling svg { animation: roll 0.45s ease-out; }
   @keyframes roll { to { transform: rotate(360deg); } }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
   @media (prefers-reduced-motion: reduce) {
     .hop, .rolling svg { animation: none; }
     /* Still a visible press, without the movement. */
@@ -212,8 +213,10 @@ var f = {
 		this.setAttribute("value", e.join(",")), this.emit("change", { value: e });
 	}
 	#l(e) {
-		let t = this.root.querySelector(".tag"), n = this.root.querySelector(".sr");
-		t.textContent = e, n.textContent = e, t.classList.add("on"), clearTimeout(this.#t), this.#t = window.setTimeout(() => t.classList.remove("on"), 1100);
+		let t = this.root.querySelector(".sr");
+		t.textContent = e;
+		let n = this.root.querySelector(".tag");
+		n.textContent = e, n.classList.add("on"), clearTimeout(this.#t), this.#t = window.setTimeout(() => n.classList.remove("on"), 1100);
 	}
 };
 n("ewo-emblem-maker", g);
