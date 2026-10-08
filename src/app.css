@@ -99,14 +99,6 @@ button {
     transform: scale(0.98);
   }
 }
-
-/* The games' lively press, a little less bouncy for Schätzle (the user, 2026-10-08), tried here
-   through Folio's tokens before the preset takes it: unlayered, so it wins over Folio's layer. */
-:root[data-ewo-press='lively'] {
-  --ewo-press-scale: 0.92;
-  --ewo-press-scale-large: 0.975;
-  --ewo-press-out: 380ms cubic-bezier(0.34, 1.45, 0.5, 1);
-}
 .btn:focus-visible,
 .input:focus-visible {
   outline: 2px solid var(--red-text);
