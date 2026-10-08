@@ -10,6 +10,9 @@ export function formatPrice(value: number): string {
   return `${Number.isInteger(rounded) ? whole.format(rounded) : cents.format(rounded)}€`;
 }
 
+/** What the guess field keeps of what's typed or pasted: digits, commas and dots, nothing else. */
+export const priceChars = (text: string) => text.replace(/[^\d.,]/g, '');
+
 /**
  * What someone typed, as euros; null when it isn't a price. German and English habits both work:
  * "1.250" and "1250" are 1250, "12,50" and "12.50" are 12.5, "1.249,99" and "1,249.99" too.

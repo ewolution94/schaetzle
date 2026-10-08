@@ -3,7 +3,7 @@
   import type { Pick, Player, View } from '../lib/api';
   import type { Room } from '../lib/room.svelte';
   import { errorText, t } from '../lib/i18n.svelte';
-  import { formatPrice, parsePrice } from '../lib/price';
+  import { formatPrice, parsePrice, priceChars } from '../lib/price';
   import Media from './Media.svelte';
   import ItemInfo from './ItemInfo.svelte';
   import Avatar from './Avatar.svelte';
@@ -99,6 +99,22 @@
     busy = false;
   }
 
+  /**
+   * The guess field takes digits, commas and dots only: anything else typed, pasted or dictated is
+   * taken out before the field paints, with the caret kept where it was.
+   */
+  function typePrice(event: Event & { currentTarget: HTMLInputElement }) {
+    const field = event.currentTarget;
+    const clean = priceChars(field.value);
+    if (clean !== field.value) {
+      const caret = priceChars(field.value.slice(0, field.selectionStart ?? field.value.length)).length;
+      field.value = clean;
+      field.setSelectionRange(caret, caret);
+    }
+    text = clean;
+    error = '';
+  }
+
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     if (busy || done) return;
@@ -173,12 +189,13 @@
             id="guess"
             class="input price"
             bind:this={input}
-            bind:value={text}
+            value={text}
             inputmode="decimal"
+            maxlength="13"
             autocomplete="off"
             enterkeyhint="send"
             placeholder={t('guessPlaceholder')}
-            oninput={() => (error = '')}
+            oninput={typePrice}
           />
           <span class="euro" aria-hidden="true">€</span>
         </div>

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 // Node runs the TypeScript sources directly (type stripping, Node 24).
-import { formatDeviation, formatPrice, parsePrice } from '../src/lib/price.ts';
+import { formatDeviation, formatPrice, parsePrice, priceChars } from '../src/lib/price.ts';
 
 test('prices read the way people type them, in German or English', () => {
   const cases = {
@@ -22,6 +22,14 @@ test('prices read the way people type them, in German or English', () => {
     '12,345': 12.35,
   };
   for (const [text, value] of Object.entries(cases)) assert.equal(parsePrice(text), value, text);
+});
+
+test('the guess field keeps digits, commas and dots only', () => {
+  assert.equal(priceChars('12,50'), '12,50');
+  assert.equal(priceChars('1.249,99'), '1.249,99');
+  assert.equal(priceChars('12abc,5 €x'), '12,5');
+  assert.equal(priceChars('-3e5'), '35');
+  assert.equal(priceChars('zwölf'), '');
 });
 
 test('anything else is not a price', () => {
