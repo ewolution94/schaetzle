@@ -1,0 +1,7 @@
+export type PressPreset = 'calm' | 'lively';
+/** Turns on tap feedback for the whole page. Call once, early (main.ts). */
+export declare function pressFeedback(options?: {
+    preset?: PressPreset;
+}): void;
+/** The look, shared with base.ts: tokens with a calm default and a lively preset for games. */
+export declare const PRESS_CSS = "\n@layer ewo-press {\n  :root {\n    --ewo-press-scale: 0.96;\n    --ewo-press-scale-large: 0.985;\n    --ewo-press-opacity: 0.82;\n    --ewo-press-in: 70ms cubic-bezier(0.2, 0, 0, 1);\n    --ewo-press-out: 220ms cubic-bezier(0.2, 0, 0, 1);\n  }\n  :root[data-ewo-press='lively'] {\n    --ewo-press-scale: 0.9;\n    --ewo-press-scale-large: 0.97;\n    --ewo-press-opacity: 0.9;\n    --ewo-press-out: 420ms cubic-bezier(0.34, 1.8, 0.5, 1);\n  }\n  [data-pressed] {\n    transition: scale var(--ewo-press-in), opacity var(--ewo-press-in);\n    opacity: var(--ewo-press-opacity);\n  }\n  [data-pressed='box'] { scale: var(--ewo-press-scale); }\n  [data-pressed='large'] { scale: var(--ewo-press-scale-large); }\n  [data-released] { transition: scale var(--ewo-press-out), opacity var(--ewo-press-out); }\n  @media (prefers-reduced-motion: reduce) {\n    [data-pressed] { scale: none; }\n  }\n}\n";
