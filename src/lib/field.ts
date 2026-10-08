@@ -43,8 +43,9 @@ export function startField(canvas: HTMLCanvasElement) {
     ink = getComputedStyle(canvas).color;
     const theme = document.documentElement.dataset.theme ?? (dark.matches ? 'dark' : 'light');
     light = theme === 'light';
-    // A quiet texture, not a pattern (the user: "too intense"; Atrium's field uses the same numbers).
-    base = light ? 0.045 : 0.035;
+    // Barely there: the game is on the cards, the field is only paper (the user, 2026-10-08: "too
+    // distracting", for Schätzle only; Atrium's field stays brighter).
+    base = light ? 0.03 : 0.022;
   }
 
   function resize() {
@@ -80,8 +81,9 @@ export function startField(canvas: HTMLCanvasElement) {
         const dy = y - py;
         const d2 = dx * dx + dy * dy;
         const k = d2 < reach ? Math.exp(-d2 / r2) : 0;
-        const push = (k * 7) / (Math.sqrt(d2) || 1);
-        let size = 0.9 + 1.3 * k;
+        // Around the pointer the dots only stir: they grow and give way a little.
+        const push = (k * 3.5) / (Math.sqrt(d2) || 1);
+        let size = 0.9 + 0.6 * k;
         let ox = dx * push;
         let oy = dy * push;
 
@@ -93,22 +95,22 @@ export function startField(canvas: HTMLCanvasElement) {
           const off = (d - ring) / RING;
           if (off > -2.5 && off < 2.5) {
             w = Math.exp(-off * off) * fade;
-            size += 2.2 * w;
+            size += 1.4 * w;
             // The ring pushes the dots outwards a little as it passes.
-            ox += ((wx / (d || 1)) * 6 * w);
-            oy += ((wy / (d || 1)) * 6 * w);
+            ox += ((wx / (d || 1)) * 4 * w);
+            oy += ((wy / (d || 1)) * 4 * w);
           }
         }
 
         if (w > 0.06) {
           ctx!.fillStyle = wave!.colors[n % wave!.colors.length];
-          ctx!.globalAlpha = Math.min(1, 0.075 + 0.5 * w);
+          ctx!.globalAlpha = Math.min(1, 0.05 + 0.35 * w);
         } else if (k > 0.04 && tint) {
           ctx!.fillStyle = tint;
-          ctx!.globalAlpha = Math.min(1, 0.1 + 0.6 * k);
+          ctx!.globalAlpha = Math.min(1, 0.06 + 0.35 * k);
         } else {
           ctx!.fillStyle = ink;
-          ctx!.globalAlpha = base + 0.22 * k;
+          ctx!.globalAlpha = base + 0.12 * k;
         }
         ctx!.fillRect(x + ox - size, y + oy - size, size * 2, size * 2);
       }
