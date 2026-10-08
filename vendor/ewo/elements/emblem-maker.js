@@ -25,6 +25,10 @@ var f = {
     gap: var(--ewo-space-3);
     padding-top: 20px;
     --_stage: var(--ewo-emblem-maker-size, 200px);
+    /* The whole maker is a no-zoom area, not only its buttons: a pressed arrow shrinks for a moment,
+       and four quick taps then landed in the gaps around it, which zoomed the page on the iPhone
+       (2026-10-08). Panning and pinch zoom still work. */
+    touch-action: manipulation;
   }
   .maker {
     display: grid;
