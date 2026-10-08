@@ -43,7 +43,12 @@ button {
   font: inherit;
   color: inherit;
   cursor: pointer;
-  /* Quick taps (higher or lower, sorting, the lobby's pills) never zoom the page on the iPhone. */
+}
+
+/* Quick taps never zoom the page on the iPhone (higher or lower, sorting, the lobby's pills, links):
+   the family's rule, at zero specificity, and not on <html>, where Safari ignores it once html has an
+   overflow (learnings/ios-and-webkit.md). */
+:where(button, a, label, summary, input, select, textarea, [role='button'], [role='radio']) {
   touch-action: manipulation;
 }
 
