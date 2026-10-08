@@ -530,6 +530,13 @@
     font-size: 12px;
     line-height: 1.4;
   }
+  /* A phone is never the big screen, and opening it there looks broken (the user, 2026-10-08): no link
+     on a phone, upright or sideways. Tablets and laptops keep it. */
+  @media (max-width: 699px), (max-height: 499px) {
+    .screen-link {
+      display: none;
+    }
+  }
 
   .players-head {
     display: flex;
