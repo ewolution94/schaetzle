@@ -99,19 +99,6 @@ button {
     transform: scale(0.98);
   }
 }
-
-/* While a finger presses and on release, pressFeedback's own timing wins over a control's transition
-   (.btn's, the sort cards', the avatar's), or the lively bounce wouldn't play. */
-[data-pressed] {
-  transition:
-    scale var(--ewo-press-in),
-    opacity var(--ewo-press-in) !important;
-}
-[data-released] {
-  transition:
-    scale var(--ewo-press-out),
-    opacity var(--ewo-press-out) !important;
-}
 .btn:focus-visible,
 .input:focus-visible {
   outline: 2px solid var(--red-text);
