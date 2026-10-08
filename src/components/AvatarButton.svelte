@@ -77,8 +77,11 @@
     -webkit-tap-highlight-color: transparent;
     transition: scale var(--ewo-dur-1);
   }
-  .trigger:active {
-    scale: 0.94;
+  /* For the mouse; a finger gets Folio's pressFeedback (main.ts). */
+  @media (hover: hover) and (pointer: fine) {
+    .trigger:active {
+      scale: 0.94;
+    }
   }
   .trigger:focus-visible {
     outline: 2px solid var(--red-text);

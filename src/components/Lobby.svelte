@@ -618,8 +618,11 @@
   .mode[aria-checked='true'] .mode-hint {
     color: var(--ewo-fg-2);
   }
-  .mode:active:not(:disabled) {
-    transform: scale(0.98);
+  /* For the mouse; a finger gets Folio's pressFeedback (main.ts). */
+  @media (hover: hover) and (pointer: fine) {
+    .mode:active:not(:disabled) {
+      transform: scale(0.98);
+    }
   }
   .mode:disabled {
     opacity: 0.5;
@@ -710,8 +713,11 @@
     border-color: var(--ewo-invert);
     color: var(--ewo-invert-ink);
   }
-  .chip:active:not(:disabled) {
-    transform: scale(0.96);
+  /* For the mouse; a finger gets Folio's pressFeedback (main.ts). */
+  @media (hover: hover) and (pointer: fine) {
+    .chip:active:not(:disabled) {
+      transform: scale(0.96);
+    }
   }
   .chip:disabled {
     opacity: 0.5;

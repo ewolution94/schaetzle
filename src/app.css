@@ -92,8 +92,25 @@ button {
   -webkit-tap-highlight-color: transparent;
   transition: transform var(--ewo-dur-1) var(--ewo-ease);
 }
-.btn:active:not(:disabled) {
-  transform: scale(0.98);
+/* :active presses are for the mouse; a finger gets Folio's pressFeedback (main.ts), which iOS shows
+   on every tap and :active doesn't. Both at once would shrink a button twice. */
+@media (hover: hover) and (pointer: fine) {
+  .btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+}
+
+/* While a finger presses and on release, pressFeedback's own timing wins over a control's transition
+   (.btn's, the sort cards', the avatar's), or the lively bounce wouldn't play. */
+[data-pressed] {
+  transition:
+    scale var(--ewo-press-in),
+    opacity var(--ewo-press-in) !important;
+}
+[data-released] {
+  transition:
+    scale var(--ewo-press-out),
+    opacity var(--ewo-press-out) !important;
 }
 .btn:focus-visible,
 .input:focus-visible {

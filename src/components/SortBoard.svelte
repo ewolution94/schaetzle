@@ -110,8 +110,11 @@
       box-shadow var(--ewo-dur-1) var(--ewo-ease),
       transform var(--ewo-dur-1) var(--ewo-ease);
   }
-  button.item:active:not(:disabled) {
-    transform: scale(0.98);
+  /* For the mouse; a finger gets Folio's pressFeedback (main.ts). */
+  @media (hover: hover) and (pointer: fine) {
+    button.item:active:not(:disabled) {
+      transform: scale(0.98);
+    }
   }
   button.item:focus-visible {
     outline: 2px solid var(--red-text);
