@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { readSearchPage } from '../tools/ebay-page.mjs';
-import { bookmarklet, collectorCode } from '../tools/collector.mjs';
+import { KNOWN, bookmarklet, collectorCode, guessTheme } from '../tools/collector.mjs';
 import { addFile, formatCollection } from '../tools/collect.mjs';
 import { PER_KEYWORD, createCollectionSource } from '../server/items/collection.mjs';
 import { createMockSource } from '../server/items/mock.mjs';
@@ -217,4 +217,29 @@ test('one search never fills a game: at most three of it, spread over the rounds
   const more = await source.draw({ count: 15, price: 'everyday', themes: ['kitchen'], exclude: new Set() });
   assert.equal(more.filter((item) => item.theme === 'tech').length, 3);
   await assert.rejects(source.draw({ count: 16, price: 'everyday', themes: ['kitchen'], exclude: new Set() }), { code: 'empty' });
+});
+
+test('the bookmark pre-fills the category of a search it knows', () => {
+  const cases = {
+    Kinositze: 'odd',
+    'Lego Millennium Falcon': 'toys',
+    'lego technic 42100': 'toys',
+    Schaufensterpuppe: 'odd',
+    'Schallplatte Beatles': 'collect',
+    'Plattenspieler Dual': 'tech',
+    'Weber Kugelgrill 57 cm': 'garden',
+    Thermomix: 'kitchen',
+    'Hermès Seidenschal': 'fashion',
+    Karussellpferd: 'odd',
+    Römertopf: 'kitchen',
+    Bonanzarad: 'outdoor',
+    'Diddl Blätter': 'collect',
+    Sitzsack: 'home',
+    xyzzy: '',
+    '': '',
+  };
+  for (const [search, theme] of Object.entries(cases)) assert.equal(guessTheme(search, KNOWN), theme, search);
+  // The bookmarklet guesses the same way.
+  const { asked } = runCollector(BROWSER, { url: 'https://www.ebay.de/sch/i.html?_nkw=Kinositze&LH_Sold=1', answer: 'odd' });
+  assert.equal(asked.guess, 'odd');
 });

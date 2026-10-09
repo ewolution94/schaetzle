@@ -7,15 +7,47 @@
 //
 //   npm run collector             the bookmarklet, to paste as a bookmark's address
 //   npm run collector -- --plain  the same code without `javascript:`, for the browser's console
+//   npm run collector -- --ideas  search ideas per category (tools/search-ideas.mjs)
 
 import { readSearchPage } from './ebay-page.mjs';
+import { IDEAS } from './search-ideas.mjs';
 import { THEMES } from '../server/items/themes.mjs';
+
+/** The searches each category knows: the game's own keywords and the search ideas, once each. */
+export const KNOWN = Object.fromEntries(Object.keys(THEMES).map((theme) => [theme, [...new Set([...THEMES[theme], ...IDEAS[theme]])]]));
+
+/**
+ * The category a search most likely belongs to, or ''. A search the lists name exactly wins
+ * ("Kinositze" → odd); otherwise the most specific overlap ("Lego Technic 42100" → toys, through
+ * "Lego"; "Schaufensterpuppe" stays odd although it holds "Puppe"). Inlined into the bookmarklet,
+ * so it uses nothing from outside its own body.
+ * @param {string} search
+ * @param {Record<string, string[]>} lists
+ */
+export function guessTheme(search, lists) {
+  const norm = (text) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const query = norm(search);
+  if (!query) return '';
+  let best = '';
+  let score = 0;
+  for (const [theme, terms] of Object.entries(lists)) {
+    for (const term of terms.map(norm)) {
+      const s = term === query ? 1000 : query.includes(term) ? term.length : term.includes(query) ? query.length / 2 : 0;
+      if (s > score) {
+        score = s;
+        best = theme;
+      }
+    }
+  }
+  return best;
+}
 
 /** The code the bookmark runs, as plain JavaScript. */
 export function collectorCode() {
   return `(() => {
   const readSearchPage = ${readSearchPage.toString()};
-  const THEMES = ${JSON.stringify(THEMES)};
+  const guessTheme = ${guessTheme.toString()};
+  const THEMES = ${JSON.stringify(KNOWN)};
   if (!/^https:\\/\\/www\\.ebay\\.de\\/sch\\//.test(location.href)) {
     alert('Schätzle: run this on an ebay.de search results page.');
     return;
@@ -29,10 +61,7 @@ export function collectorCode() {
     alert('Schätzle: no listings found on this page (' + all.length + ' cards). Has eBay changed its page?');
     return;
   }
-  const lower = keyword.toLowerCase();
-  const guess = Object.keys(THEMES).find((t) => THEMES[t].some((k) => k.toLowerCase() === lower))
-    || Object.keys(THEMES).find((t) => THEMES[t].some((k) => lower.includes(k.toLowerCase()) || k.toLowerCase().includes(lower)))
-    || '';
+  const guess = guessTheme(keyword, THEMES);
   const skipped = all.length - items.length;
   const answer = prompt(
     'Schätzle: ' + items.length + ' listings for "' + keyword + '"'
@@ -68,7 +97,9 @@ export function bookmarklet() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  if (process.argv.includes('--plain')) {
+  if (process.argv.includes('--ideas')) {
+    for (const [theme, ideas] of Object.entries(IDEAS)) console.log(`${theme}\n  ${ideas.join(', ')}\n`);
+  } else if (process.argv.includes('--plain')) {
     console.log(collectorCode());
   } else {
     console.log(`Save this as a bookmark's address (URL), then tap the bookmark on an ebay.de search
