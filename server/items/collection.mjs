@@ -12,7 +12,7 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { PRICES } from './themes.mjs';
+import { PRICES, blocked } from './themes.mjs';
 import { shuffle } from './mock.mjs';
 import { SourceError, mix, upsized } from './ebay.mjs';
 
@@ -81,7 +81,8 @@ export function createCollectionSource({ items, images, random = Math.random }) 
      */
     async draw({ count, price, themes, exclude = new Set() }) {
       const [min, max] = PRICES[price];
-      const fresh = items.filter((item) => !exclude.has(item.id) && item.price >= min && item.price <= max);
+      // The blocklist applies at every draw, so a word added later keeps already collected titles out too.
+      const fresh = items.filter((item) => !exclude.has(item.id) && item.price >= min && item.price <= max && !blocked(item.title));
       const picked = [];
       const taken = new Set();
       // The host's categories first, then the others in the same range.

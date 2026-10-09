@@ -82,9 +82,11 @@ export function readSearchPage(html) {
       .trim();
 
     const priceText = decode(new RegExp(`${cls('s-card__price')}[^>]*>([\\s\\S]*?)<\\/span>`).exec(card)?.[1] ?? '').replace(/<[^>]*>/g, '');
-    // The last subtitle row is "Neu | Gewerblich"; the condition is its first part.
+    // The last subtitle row is "Neu | Gewerblich"; the condition is its first part. Without a
+    // condition, only the seller type is left there ("Privat"): that's no condition.
     const subtitles = [...card.matchAll(new RegExp(`${cls('s-card__subtitle')}>([\\s\\S]*?)<\\/div>`, 'g'))];
-    const condition = decode(plain(subtitles.at(-1)?.[1] ?? '').split('|')[0] ?? '').trim();
+    const first = decode(plain(subtitles.at(-1)?.[1] ?? '').split('|')[0] ?? '').trim();
+    const condition = /^(Privat|Gewerblich)$/i.test(first) ? '' : first;
     // A sold listing says when: "Verkauft  5. Okt 2026" (sometimes "Verkauft am …").
     const sold = /Verkauft(?:\s+am)?\s+(\d{1,2})\.\s*([A-Za-zäÄ]{3,4})\.?\s+(\d{4})/.exec(plain(card).replace(/&nbsp;| /g, ' '));
     const months = { jan: 1, feb: 2, mär: 3, mar: 3, apr: 4, mai: 5, jun: 6, jul: 7, aug: 8, sep: 9, okt: 10, nov: 11, dez: 12 };

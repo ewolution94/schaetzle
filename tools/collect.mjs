@@ -45,7 +45,8 @@ export function addFile(collection, file) {
         keyword: typeof file.keyword === 'string' ? file.keyword : '',
         title: item.title.trim(),
         price: Math.round(item.price * 100) / 100,
-        condition: typeof item.condition === 'string' ? item.condition : '',
+        // The seller type isn't a condition (files from before the bookmark knew that).
+        condition: typeof item.condition === 'string' && !/^(Privat|Gewerblich)$/i.test(item.condition) ? item.condition : '',
         image: item.image,
         url: `https://www.ebay.de/itm/${item.id}`,
         sold: file.sold === true,

@@ -37,7 +37,8 @@ export const PRICES = /** @type {const} */ ({
 const BLOCKED_WORDS = [
   'sex', 'sexy', 'erotik', 'erotisch', 'erotic', 'porno', 'nackt', 'nude', 'fetisch', 'fetish', 'dessous', 'lingerie', 'reizwäsche', 'dildo', 'vibrator', 'kondom', 'kondome', 'bdsm', 'latex', 'stripper',
   'waffe', 'waffen', 'pistole', 'revolver', 'gewehr', 'munition', 'softair', 'airsoft', 'schreckschuss', 'bajonett', 'dolch', 'schlagring',
-  'wehrmacht', 'nsdap', 'hakenkreuz', 'ss', 'reich', 'hitler', 'nazi', 'militaria', 'orden', 'stahlhelm',
+  'wehrmacht', 'nsdap', 'hakenkreuz', 'ss', 'reich', 'hitler', 'nazi', 'militaria', 'militär', 'orden', 'stahlhelm',
+  'akt', 'aktbild', 'aktmalerei', 'aktstudie', 'aktzeichnung',
   'cbd', 'thc', 'cannabis', 'bong', 'shisha', 'vape', 'e-zigarette', 'tabak',
   'tot', 'präparat', 'tierpräparat', 'schädel', 'leiche',
 ];
