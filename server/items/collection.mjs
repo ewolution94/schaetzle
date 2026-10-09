@@ -8,13 +8,15 @@
 // game (the user: twenty coffee machines collected must not make a coffee-machine game), spread over
 // the rounds, and look-alike titles count once. Short of listings there, it takes other categories in
 // the same range; short even then, it fails and the game plays the demo items (index.mjs →
-// withFallback).
+// withFallback). Across games it rotates (rotation.mjs): within each search, listings no game has
+// had come first, then the ones shown longest ago, and searches that haven't come up lately go first.
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PRICES, blocked } from './themes.mjs';
 import { shuffle } from './mock.mjs';
 import { SourceError, mix, upsized } from './ebay.mjs';
+import { createRotation } from './rotation.mjs';
 
 /** Listings of one search per game, at most. */
 export const PER_KEYWORD = 3;
@@ -68,9 +70,17 @@ function distinct(items) {
 }
 
 /**
- * @param {{ items: CollectionItem[], images: { register(candidates: string[]): string }, random?: () => number }} options
+ * @param {{
+ *   items: CollectionItem[],
+ *   images: { register(candidates: string[]): string },
+ *   random?: () => number,
+ *   rotation?: ReturnType<typeof createRotation>,
+ * }} options
  */
-export function createCollectionSource({ items, images, random = Math.random }) {
+export function createCollectionSource({ items, images, random = Math.random, rotation = createRotation() }) {
+  /** Shuffled, then the least recently shown first (a stable sort keeps the shuffle among equals). */
+  const freshFirst = (list) => shuffle(list, random).sort((a, b) => rotation.lastShown(a.id) - rotation.lastShown(b.id));
+
   return {
     name: 'collection',
     demo: false,
@@ -89,7 +99,7 @@ export function createCollectionSource({ items, images, random = Math.random }) 
       for (const tier of [fresh.filter((item) => themes.includes(item.theme)), fresh]) {
         const left = tier.filter((item) => !taken.has(item.id));
         const byKeyword = new Map();
-        for (const item of shuffle(left, random)) {
+        for (const item of freshFirst(left)) {
           const key = keyOf(item);
           if (!byKeyword.has(key)) byKeyword.set(key, []);
           byKeyword.get(key).push(item);
@@ -98,13 +108,16 @@ export function createCollectionSource({ items, images, random = Math.random }) 
         const used = new Map();
         for (const item of picked) used.set(keyOf(item), (used.get(keyOf(item)) ?? 0) + 1);
         const buckets = [...byKeyword].map(([key, list]) => distinct(list).slice(0, Math.max(0, PER_KEYWORD - (used.get(key) ?? 0))));
-        for (const item of mix(shuffle(buckets, random), count - picked.length)) {
+        // Searches whose best listing is freshest go first, so the searches rotate too.
+        const order = shuffle(buckets.filter((b) => b.length), random).sort((a, b) => rotation.lastShown(a[0].id) - rotation.lastShown(b[0].id));
+        for (const item of mix(order, count - picked.length)) {
           taken.add(item.id);
           picked.push(item);
         }
         if (picked.length >= count) break;
       }
       if (picked.length < count) throw new SourceError('empty');
+      rotation.mark(picked.map((item) => item.id));
       return picked.map((item) => ({
         id: item.id,
         theme: item.theme,

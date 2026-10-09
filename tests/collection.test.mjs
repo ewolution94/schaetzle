@@ -262,3 +262,38 @@ test('the checklist ticks the ideas the collection has, per category', () => {
   assert.match(text, /\+ also: rasentraktor \(4\)/);
   assert.match(text, /odd: 1 listings from 1 searches, 1 of 2 ideas done/);
 });
+
+test('games rotate: listings shown lately wait until the fresh ones are used up, and it survives a restart', async () => {
+  const { mkdtempSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const { createRotation } = await import('../server/items/rotation.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'schaetzle-rotation-'));
+  let now = 1_000_000;
+  const items = collection(['Laptop', 'Tablet', 'Kopfhörer', 'Smartphone'].map((keyword) => ['tech', keyword, 6]));
+  const request = { count: 8, price: 'everyday', themes: ['tech'], exclude: new Set() };
+  const make = () => createCollectionSource({ items, images: registry(), random: seeded(3), rotation: createRotation({ dir, now: () => now, log: () => {} }) });
+
+  // 24 listings, 8 a game: three games without a repeat.
+  const source = make();
+  const seen = new Set();
+  for (let game = 0; game < 3; game++) {
+    now += 60_000;
+    for (const item of await source.draw(request)) {
+      assert.ok(!seen.has(item.id), `game ${game + 1} repeats ${item.title}`);
+      seen.add(item.id);
+    }
+  }
+  assert.equal(seen.size, 24);
+  // The fourth game brings back the first game's listings, the ones shown longest ago.
+  now += 60_000;
+  const firstGame = new Set([...seen].slice(0, 8));
+  const fourth = await source.draw(request);
+  assert.ok(fourth.every((item) => firstGame.has(item.id)));
+
+  // A restart (a redeploy) reads the file: the next game is the second game's listings again.
+  now += 60_000;
+  const secondGame = new Set([...seen].slice(8, 16));
+  const again = await make().draw(request);
+  assert.ok(again.every((item) => secondGame.has(item.id)));
+});

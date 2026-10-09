@@ -11,3 +11,9 @@ services:
       # Leave both empty for the demo items; set both for live ebay.de listings.
       - EBAY_CLIENT_ID=${EBAY_CLIENT_ID:-}
       - EBAY_CLIENT_SECRET=${EBAY_CLIENT_SECRET:-}
+    volumes:
+      # The collection's rotation (which listings came up lately).
+      - data:/data
+
+volumes:
+  data:

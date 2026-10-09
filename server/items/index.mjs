@@ -5,6 +5,8 @@
 //                                         with the collector bookmarklet, when there are any
 //   an empty collection                   the demo list (mock.mjs)
 //   SCHAETZLE_SOURCE=mock                 the demo list, whatever else is set
+//   SCHAETZLE_DATA=/data                  where the collection's rotation is kept (rotation.mjs);
+//                                         unset, it lives in memory until the next restart
 //
 // eBay declined the user's developer account (2026-10-09); the user chose to gather sold listings
 // themselves instead of having the server read eBay live. A game the collection can't fill (too few
@@ -12,6 +14,7 @@
 
 import { createEbaySource } from './ebay.mjs';
 import { COLLECTION_PATH, createCollectionSource, readCollection } from './collection.mjs';
+import { createRotation } from './rotation.mjs';
 import { createMockSource } from './mock.mjs';
 
 /**
@@ -25,7 +28,8 @@ export function createSource(env, { images, collection = COLLECTION_PATH, log = 
   if (id && secret) return createEbaySource({ clientId: id, clientSecret: secret, images });
   const items = readCollection(collection);
   if (!items.length) return createMockSource();
-  return withFallback(createCollectionSource({ items, images }), createMockSource(), log);
+  const rotation = createRotation({ dir: env.SCHAETZLE_DATA?.trim() || null, log });
+  return withFallback(createCollectionSource({ items, images, rotation }), createMockSource(), log);
 }
 
 /**

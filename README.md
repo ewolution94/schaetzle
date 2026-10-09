@@ -133,7 +133,9 @@ listings, `server/items/collection.json`, which the user builds up by hand:
    like any change; the next image plays it.
 
 A game draws from the host's categories and price range and mixes the searches the listings came
-from, so ten rounds aren't ten lamps. Short of listings there, it takes other categories in the same
+from, so ten rounds aren't ten lamps. Across games it rotates: listings no game has had come first,
+then the ones shown longest ago (`server/items/rotation.mjs`, kept for 90 days in
+`SCHAETZLE_DATA`, a volume on the NAS). Short of listings there, it takes other categories in the same
 range; short even then, it plays the demo items, labelled "Demo". The more searches per category,
 the more varied the games: a few pages of sold listings per category is a good start.
 
@@ -178,6 +180,7 @@ This mirrors Cantina, Atrium and Aale Spiele:
 | `HOST` | `0.0.0.0` | Listen address |
 | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | empty | eBay production keyset; both set means the Browse API instead of the collection |
 | `SCHAETZLE_SOURCE` | | `mock` forces the demo items |
+| `SCHAETZLE_DATA` | `/data` in the image | where the collection's rotation is kept; unset, it's in memory until a restart |
 | `SCHAETZLE_CENSUS` | off | Census's ingest origin, `http://census:4901` on the NAS |
 
 ## Project layout
