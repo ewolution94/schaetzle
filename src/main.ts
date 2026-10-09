@@ -12,11 +12,17 @@ import '../vendor/ewo/elements/emblem-maker.js';
 // Every tap answers on a phone, the games' lively way: a deep press and a bounce on release
 // (Folio's pressFeedback, development/plans/mobile-touch.md; Schätzle is the games' pilot).
 import { pressFeedback } from '../vendor/ewo/elements/press.js';
+// Waiting at the button that asked, with Schätzle's swinging tag (development/plans/waiting-states.md),
+// and the connection pill.
+import { configureWaiting } from '../vendor/ewo/elements/waiting.js';
+import '../vendor/ewo/elements/connection.js';
+import { TAG_MARK } from './lib/mark';
 
 import { mount } from 'svelte';
 import App from './App.svelte';
 
 pressFeedback({ preset: 'lively' });
+configureWaiting({ mark: TAG_MARK });
 
 function start() {
   mount(App, { target: document.getElementById('app')! });

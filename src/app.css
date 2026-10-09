@@ -45,6 +45,46 @@ button {
   cursor: pointer;
 }
 
+/* Schätzle's working mark (lib/mark.ts): a price tag swinging on its string, calm and small. In the
+   waiting buttons and the connection pill. */
+.tag-mark {
+  display: block;
+  width: 1.45em;
+  height: 1.2em;
+  overflow: visible;
+}
+.tag-mark .string {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+.tag-mark .swing {
+  fill: currentColor;
+  transform-box: view-box;
+  transform-origin: 6.5px 10px;
+  animation: tag-swing 1.2s ease-in-out infinite alternate;
+}
+@keyframes tag-swing {
+  from {
+    rotate: -18deg;
+  }
+  to {
+    rotate: 10deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tag-mark .swing {
+    animation: none;
+    rotate: -8deg;
+  }
+}
+/* The connection pill sits under the sticky bar. */
+ewo-connection {
+  --ewo-connection-top: calc(env(safe-area-inset-top, 0px) + var(--bar-h) + 8px);
+}
+
 /* Quick taps never zoom the page on the iPhone (higher or lower, sorting, the lobby's pills, links):
    the family's rule, at zero specificity, and not on <html>, where Safari ignores it once html has an
    overflow (learnings/ios-and-webkit.md). */

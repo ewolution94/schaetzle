@@ -37,11 +37,24 @@
     path = to;
   }
 
-  function enter(seat: Seat) {
+  /**
+   * Into a room. With a signal (New game, a join), the screen changes only once the room's first view
+   * is here, inside the button's wait, so the lobby shows whole; the signal gives up after 12 s.
+   */
+  async function enter(seat: Seat, signal?: AbortSignal) {
     saveSeat(seat);
+    const next = new Room(seat);
+    next.connect();
+    if (signal) {
+      try {
+        await next.ready(signal);
+      } catch (error) {
+        next.close();
+        throw error;
+      }
+    }
     room?.close();
-    room = new Room(seat);
-    room.connect();
+    room = next;
     go(`/${seat.code}`);
   }
 
@@ -99,7 +112,7 @@
     <Screen code={screenCode} />
   {/key}
 {:else}
-<Bar code={room ? room.seat.code : null} />
+<Bar code={room ? room.seat.code : null} {room} onleave={leaveRoom} />
 
 <main>
   {#if room}
@@ -108,9 +121,9 @@
     {#if !reclaiming}
       <Join
         {code}
-        onjoin={(seat, name) => {
+        onjoin={async (seat, name, signal) => {
           saveName(name);
-          enter(seat);
+          await enter(seat, signal);
         }}
         onback={() => go('/')}
       />
@@ -118,9 +131,9 @@
   {:else}
     <Home
       demo={config?.demo ?? false}
-      oncreate={(seat, name) => {
+      oncreate={async (seat, name, signal) => {
         saveName(name);
-        enter(seat);
+        await enter(seat, signal);
       }}
       onjoin={(c) => go(`/${c}`)}
     />

@@ -2,6 +2,7 @@
   import { api, ApiError, CODE, type Seat } from '../lib/api';
   import { errorText, t } from '../lib/i18n.svelte';
   import { saveAvatar, savedAvatar, savedName } from '../lib/session';
+  import { newKey, waitAt } from '../lib/waits';
   import AvatarButton from './AvatarButton.svelte';
   import PriceTag from './PriceTag.svelte';
 
@@ -9,33 +10,32 @@
     demo,
     oncreate,
     onjoin,
-  }: { demo: boolean; oncreate: (seat: Seat, name: string) => void; onjoin: (code: string) => void } = $props();
+  }: { demo: boolean; oncreate: (seat: Seat, name: string, signal: AbortSignal) => Promise<void>; onjoin: (code: string) => void } = $props();
 
   let name = $state(savedName());
   let avatar = $state(savedAvatar());
   let code = $state('');
-  let busy = $state(false);
+  /** The same for every try of one "New game", so a retry after a timeout gets the same room. */
+  let key = newKey();
   let error = $state('');
 
   const validCode = $derived(CODE.test(code));
 
+  /** Waited for at the button (lib/waits.ts) until the lobby's first view is here. */
   async function create(event: SubmitEvent) {
     event.preventDefault();
-    if (busy) return;
     if (!name.trim()) {
       error = errorText('name');
       return;
     }
-    busy = true;
     error = '';
     try {
       // The first tag this device plays under is kept, so the next game starts with it too.
       saveAvatar(avatar);
-      oncreate(await api.create(name.trim(), avatar), name.trim());
+      await waitAt(event, async (signal) => oncreate(await api.create(name.trim(), avatar, key, signal), name.trim(), signal), t('wait_create'));
+      key = newKey();
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
-    } finally {
-      busy = false;
     }
   }
 
@@ -76,7 +76,7 @@
         placeholder={t('namePlaceholder')}
       />
     </div>
-    <button class="btn primary block" disabled={busy}>{t('newGame')}</button>
+    <button class="btn primary block">{t('newGame')}</button>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </form>
 

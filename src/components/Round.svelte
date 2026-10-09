@@ -16,7 +16,7 @@
     isHost,
     room,
     act,
-  }: { view: View; me: Player; isHost: boolean; room: Room; act: (action: string, body?: unknown) => Promise<boolean> } = $props();
+  }: { view: View; me: Player; isHost: boolean; room: Room; act: (action: string, body?: unknown, from?: Event) => Promise<boolean> } = $props();
 
   // Svelte remounts this per deal (Game.svelte keys it), so these start fresh every round.
   const round = $derived(view.round!);
@@ -71,7 +71,7 @@
     }
   }
 
-  async function joker() {
+  async function joker(event: Event) {
     if (busy || done) return;
     if (!confirming) {
       confirming = true;
@@ -82,17 +82,18 @@
     clearTimeout(confirmTimer);
     confirming = false;
     busy = true;
-    if (await act('joker')) {
+    if (await act('joker', undefined, event)) {
       remember('joker');
       input?.blur();
     }
     busy = false;
   }
 
-  async function send(body: unknown, value: Locked) {
+  /** A guess, waited for at the control that sent it (`from`). `busy` keeps the other controls quiet meanwhile. */
+  async function send(body: unknown, value: Locked, from: Event) {
     busy = true;
     error = '';
-    if (await act('guess', body)) {
+    if (await act('guess', body, from)) {
       remember(value);
       input?.blur();
     }
@@ -120,7 +121,7 @@
     if (busy || done) return;
     if (mode === 'higher') return;
     if (mode === 'sort') {
-      if (order.length === round.items!.length) await send({ order }, [...order]);
+      if (order.length === round.items!.length) await send({ order }, [...order], event);
       return;
     }
     const value = parsePrice(text);
@@ -128,13 +129,13 @@
       error = errorText('guess');
       return;
     }
-    await send({ value }, value);
+    await send({ value }, value, event);
   }
 
-  async function choose(way: Pick) {
+  async function choose(way: Pick, event: Event) {
     if (busy || done) return;
     pick = way;
-    await send({ pick: way }, way);
+    await send({ pick: way }, way, event);
   }
 
   /** Sorting: a tap gives the next place; tapping a placed item takes it (and the places after it) back. */
@@ -171,7 +172,7 @@
         <!-- One tap is the answer: the two buttons are big and far apart, and a quick call is the fun of it. -->
         <div class="picks">
           {#each ['higher', 'lower'] as const as way (way)}
-            <button type="button" class="btn pick {way}" aria-pressed={pick === way} disabled={busy} onclick={() => choose(way)}>
+            <button type="button" class="btn pick {way}" aria-pressed={pick === way} onclick={(e) => choose(way, e)}>
               <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" /></svg>
               {t(`pick_${way}`)}
             </button>
@@ -179,7 +180,7 @@
         </div>
       {:else if mode === 'sort'}
         <div class="sort-actions">
-          <button class="btn primary block" disabled={busy || !ready}>{t('submitOrder')}</button>
+          <button class="btn primary block" disabled={!ready}>{t('submitOrder')}</button>
           <button type="button" class="btn secondary" disabled={busy || !order.length} onclick={() => (order = [])}>{t('sortReset')}</button>
         </div>
       {:else}
@@ -200,11 +201,11 @@
           <span class="euro" aria-hidden="true">€</span>
         </div>
         {#if mode === 'hot'}<p class="rule">{t('hotRule')}</p>{/if}
-        <button class="btn primary block" disabled={busy || !ready}>{t('submit')}</button>
+        <button class="btn primary block" disabled={!ready}>{t('submit')}</button>
       {/if}
       {#if error}<p class="error" role="alert">{error}</p>{/if}
       {#if me.jokers > 0}
-        <button type="button" class="btn joker block" class:confirming disabled={busy} onclick={joker}>
+        <button type="button" class="btn joker block" class:confirming onclick={joker}>
           {#if confirming}
             {t('jokerConfirm')}
           {:else}
@@ -227,7 +228,7 @@
   </ul>
 
   {#if isHost && round.skips > 0}
-    <button class="btn quiet skip" onclick={() => act('skip')}>
+    <button class="btn quiet skip" onclick={(e) => act('skip', undefined, e)}>
       {t('skip')} <span class="label">{t('skipsLeft', { n: round.skips })}</span>
     </button>
   {/if}

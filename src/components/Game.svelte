@@ -1,9 +1,11 @@
 <script lang="ts">
-  // One room: the screen for its phase, plus what every phase shares (reconnecting, being gone).
+  // One room: the screen for its phase, plus what every phase shares (the connection, being gone).
   import { ApiError } from '../lib/api';
   import type { Room } from '../lib/room.svelte';
   import { errorText, t } from '../lib/i18n.svelte';
   import { toast } from '../../vendor/ewo/elements/toaster.js';
+  import { actAt } from '../lib/waits';
+  import { TAG_MARK } from '../lib/mark';
   import Lobby from './Lobby.svelte';
   import Round from './Round.svelte';
   import Reveal from './Reveal.svelte';
@@ -15,11 +17,14 @@
   const me = $derived(view?.players.find((p) => p.id === room.seat.player) ?? null);
   const isHost = $derived(view?.host === room.seat.player);
 
-  /** A move; a refusal shows as a toast (the view itself is what the stream says). */
-  async function act(action: string, body?: unknown) {
+  /**
+   * A move, waited for at the control that made it (`from`: its click or submit event; lib/waits.ts).
+   * A refusal shows as a toast (the view itself is what the stream says). False when it didn't go
+   * through, or when the control was already waiting.
+   */
+  async function act(action: string, body?: unknown, from?: Event | Element | null) {
     try {
-      await room.act(action, body);
-      return true;
+      return (await actAt(room, action, body, from)) === true;
     } catch (error) {
       const code = error instanceof ApiError ? error.code : 'other';
       if (code === 'no-player') onrejoin();
@@ -41,11 +46,17 @@
     }
   });
 
-  async function leave() {
-    await room.act('leave').catch(() => {});
+  async function leave(event: Event) {
+    // Out either way: a seat the server doesn't hear about leaves the lobby on its own.
+    await actAt(room, 'leave', undefined, event).catch(() => {});
     onleave();
   }
+
+  /** The connection pill (Folio's <ewo-connection>): quiet for a blip, never over a game that's gone. */
+  const connection = $derived(room.live || view?.phase === 'gone' ? 'online' : room.wasLive ? 'reconnecting' : 'connecting');
 </script>
+
+<ewo-connection state={connection}><span slot="mark">{@html TAG_MARK}</span></ewo-connection>
 
 {#if !view}
   <p class="status label" aria-live="polite">…</p>
@@ -61,10 +72,6 @@
     <button class="btn quiet" onclick={onleave}>{t('home')}</button>
   </section>
 {:else}
-  {#if !room.live}
-    <p class="offline" role="status">{t('reconnecting')}</p>
-  {/if}
-
   {#if view.phase === 'lobby' || view.phase === 'loading'}
     <Lobby {view} {me} {isHost} {act} />
   {:else if view.phase === 'guess' && view.round}
@@ -78,7 +85,7 @@
   {/if}
 
   <div class="leave">
-    <button class="btn quiet" onclick={leave}>{t('leave')}</button>
+    <button class="btn quiet" onclick={(e) => leave(e)}>{t('leave')}</button>
   </div>
 {/if}
 
@@ -99,18 +106,7 @@
     margin: 0;
     font: 700 22px/1.3 var(--ewo-sans);
   }
-  .offline {
-    position: sticky;
-    top: calc(var(--bar-h) + 8px);
-    z-index: 5;
-    width: fit-content;
-    margin: 0 auto 12px;
-    padding: 8px 14px;
-    border-radius: var(--ewo-r-pill);
-    background: var(--ewo-invert);
-    color: var(--ewo-invert-ink);
-    font: 500 13px/1 var(--ewo-sans);
-  }
+
   .leave {
     display: flex;
     justify-content: center;

@@ -360,3 +360,47 @@ test('the demo list fills every price range and theme with plausible items', asy
   const narrow = await source.draw({ count: 19, price: 'small', themes: ['odd'], exclude: new Set() });
   assert.equal(narrow.length, 19);
 });
+
+test('a retried "New game" or join with the same key gets the same seat, not a second one', () => {
+  const { games, clock } = setup();
+  const first = games.create({ name: 'Anna', key: 'k-create-12345' });
+  // The page gave up waiting and tried again: same room, same seat.
+  assert.deepEqual(games.create({ name: 'Anna', key: 'k-create-12345' }), first);
+  assert.equal(games.size, 1);
+  const ben = games.join(first.code, { name: 'Ben', key: 'k-join-12345' });
+  assert.deepEqual(games.join(first.code, { name: 'Ben', key: 'k-join-12345' }), ben);
+  assert.equal(games.view(first.code).players.length, 2);
+  // Without a key, or a malformed one, every try is a new seat.
+  games.join(first.code, { name: 'Cem' });
+  games.join(first.code, { name: 'Cem', key: 'x' });
+  assert.equal(games.view(first.code).players.length, 4);
+  // A key only stands for a minute.
+  clock.advance(61_000);
+  assert.notEqual(games.join(first.code, { name: 'Ben', key: 'k-join-12345' }).player, ben.player);
+});
+
+test('the host ends a running game for everyone: the results so far, and who ended it', async () => {
+  for (const mode of ['classic', 'hot', 'higher', 'sort']) {
+    const { games, host, ben, clock } = await threePlayers({ mode, rounds: 5 });
+    // Nothing to end in the lobby.
+    await assert.rejects(games.act(host.code, host.token, 'end'), { code: 'wrong-phase' });
+    await games.act(host.code, host.token, 'start');
+    assert.equal(games.view(host.code).phase, 'guess', mode);
+    // Only the host.
+    await assert.rejects(games.act(host.code, ben.token, 'end'), { code: 'not-host' });
+    // One round to the reveal, then end in the next.
+    clock.advance(10 * 60_000);
+    assert.equal(games.view(host.code).phase, 'reveal', mode);
+    await games.act(host.code, host.token, 'next');
+    await games.act(host.code, host.token, 'end');
+    const view = games.view(host.code);
+    assert.equal(view.phase, 'final', mode);
+    assert.deepEqual(view.ended, { by: 'Anna' });
+    // The revealed round counts, the one ended mid-guess doesn't.
+    assert.equal(view.history.length, 1, mode);
+    // Nothing to end at the end; Play again clears it.
+    await assert.rejects(games.act(host.code, host.token, 'end'), { code: 'wrong-phase' });
+    await games.act(host.code, host.token, 'rematch');
+    assert.equal(games.view(host.code).ended, null);
+  }
+});

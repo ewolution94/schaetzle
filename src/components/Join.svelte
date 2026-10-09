@@ -3,15 +3,17 @@
   import { api, ApiError, type Phase, type Seat } from '../lib/api';
   import { errorText, t } from '../lib/i18n.svelte';
   import { saveAvatar, savedAvatar, savedName } from '../lib/session';
+  import { newKey, waitAt } from '../lib/waits';
   import AvatarButton from './AvatarButton.svelte';
 
-  let { code, onjoin, onback }: { code: string; onjoin: (seat: Seat, name: string) => void; onback: () => void } = $props();
+  let { code, onjoin, onback }: { code: string; onjoin: (seat: Seat, name: string, signal: AbortSignal) => Promise<void>; onback: () => void } = $props();
 
   let info: { phase: Phase; players: number; full: boolean } | null = $state(null);
   let missing = $state(false);
   let name = $state(savedName());
   let avatar = $state(savedAvatar());
-  let busy = $state(false);
+  /** The same for every try of one join, so a retry after a timeout doesn't seat you twice. */
+  let key = newKey();
   let error = $state('');
   let input: HTMLInputElement | undefined = $state();
 
@@ -28,24 +30,22 @@
     );
   });
 
+  /** Waited for at the button (lib/waits.ts) until the room's first view is here. */
   async function submit(event: SubmitEvent) {
     event.preventDefault();
-    if (busy) return;
     if (!name.trim()) {
       error = errorText('name');
       return;
     }
-    busy = true;
     error = '';
     try {
       saveAvatar(avatar);
-      onjoin(await api.join(code, name.trim(), avatar), name.trim());
+      await waitAt(event, async (signal) => onjoin(await api.join(code, name.trim(), avatar, undefined, key, signal), name.trim(), signal), t('wait_join'));
+      key = newKey();
     } catch (e) {
       const reason = e instanceof ApiError ? e.code : 'other';
       if (reason === 'no-room') missing = true;
       error = errorText(reason);
-    } finally {
-      busy = false;
     }
   }
 </script>
@@ -84,7 +84,7 @@
           placeholder={t('namePlaceholder')}
         />
       </div>
-      <button class="btn primary block" disabled={busy || info?.full}>{t('join')}</button>
+      <button class="btn primary block" disabled={info?.full}>{t('join')}</button>
       {#if info?.full}<p class="error">{t('error:room-full')}</p>{/if}
       {#if error}<p class="error" role="alert">{error}</p>{/if}
     </form>

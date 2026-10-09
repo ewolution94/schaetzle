@@ -13,7 +13,7 @@
   import SortBoard from './SortBoard.svelte';
   import TeamBoard from './TeamBoard.svelte';
 
-  let { view, me, isHost, act }: { view: View; me: Player; isHost: boolean; act: (action: string, body?: unknown) => Promise<boolean> } = $props();
+  let { view, me, isHost, act }: { view: View; me: Player; isHost: boolean; act: (action: string, body?: unknown, from?: Event) => Promise<boolean> } = $props();
 
   const round = $derived(view.round!);
   const reveal = $derived(view.reveal!);
@@ -131,7 +131,7 @@
   {/if}
 
   {#if isHost}
-    <button class="btn primary block" onclick={() => act('next')}>{last ? t('toResults') : t('next')}</button>
+    <button class="btn primary block" onclick={(e) => act('next', undefined, e)}>{last ? t('toResults') : t('next')}</button>
   {:else}
     <p class="waiting">{t('waitingFor', { name: host?.name ?? '…' })}</p>
   {/if}

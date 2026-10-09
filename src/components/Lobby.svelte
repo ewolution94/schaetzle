@@ -11,7 +11,7 @@
     me,
     isHost,
     act,
-  }: { view: View; me: Player; isHost: boolean; act: (action: string, body?: unknown) => Promise<boolean> } = $props();
+  }: { view: View; me: Player; isHost: boolean; act: (action: string, body?: unknown, from?: Event) => Promise<boolean> } = $props();
 
   const THEMES: Theme[] = ['tech', 'home', 'kitchen', 'fashion', 'toys', 'collect', 'outdoor', 'garden', 'odd'];
   const PRICES: PriceRange[] = ['small', 'everyday', 'all'];
@@ -101,11 +101,12 @@
   const loading = $derived(view.phase === 'loading' || starting);
   const noThemes = $derived(settings.themes.length === 0);
 
-  async function start() {
+  /** Waited for at the button until the first round is dealt (lib/waits.ts). */
+  async function start(event: Event) {
     starting = true;
     // Settings still on their way go first, so the game starts with what the host sees.
     if (sending) await sending;
-    await act('start');
+    await act('start', undefined, event);
     starting = false;
   }
 
@@ -182,7 +183,7 @@
         <span class="label">{t('offline')}</span>
       {/if}
       {#if isHost && player.id !== me.id}
-        <button class="kick" aria-label={t('remove', { name: player.name })} onclick={() => act('kick', { player: player.id })}>
+        <button class="kick" aria-label={t('remove', { name: player.name })} onclick={(e) => act('kick', { player: player.id }, e)}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       {/if}
@@ -193,7 +194,7 @@
     <div class="players-head">
       <p class="label">{t('players')} · {view.players.length}</p>
       {#if grouped && isHost}
-        <button class="link" disabled={loading} onclick={() => act('shuffle')}>{t('shuffleTeams')}</button>
+        <button class="link" disabled={loading} onclick={(e) => act('shuffle', undefined, e)}>{t('shuffleTeams')}</button>
       {/if}
     </div>
     {#if grouped}
@@ -205,7 +206,7 @@
               <span class="team-name">{t('teamName', { name: t(`team_${team}` as Key) })}</span>
               <span class="count">{members.length}</span>
               {#if me.team !== team}
-                <button class="link join" disabled={loading} onclick={() => act('team', { team })}>{t('joinTeam')}</button>
+                <button class="link join" disabled={loading} onclick={(e) => act('team', { team }, e)}>{t('joinTeam')}</button>
               {/if}
             </header>
             {#if members.length}
@@ -343,7 +344,7 @@
   <div class="start">
     {#if notice}<p class="error" role="alert">{notice}</p>{/if}
     {#if isHost}
-      <button class="btn primary block" disabled={loading || noThemes} onclick={start}>
+      <button class="btn primary block" disabled={noThemes || (view.phase === 'loading' && !starting)} onclick={start}>
         {loading ? t('starting') : t('start')}
       </button>
     {:else}

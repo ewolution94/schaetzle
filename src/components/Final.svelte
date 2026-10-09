@@ -7,7 +7,7 @@
   import Thumb from './Thumb.svelte';
   import TeamBoard from './TeamBoard.svelte';
 
-  let { view, me, isHost, act }: { view: View; me: Player; isHost: boolean; act: (action: string, body?: unknown) => Promise<boolean> } = $props();
+  let { view, me, isHost, act }: { view: View; me: Player; isHost: boolean; act: (action: string, body?: unknown, from?: Event) => Promise<boolean> } = $props();
 
   const ranked = $derived([...view.players].sort((a, b) => b.score - a.score));
   /** Ranks with ties: 1000, 900, 900, 400 → 1, 2, 2, 4. */
@@ -22,8 +22,12 @@
   const teamTotals = $derived(view.game?.teams && view.teams ? view.teams : null);
   const teamOrder = $derived(teamTotals ? teamTotals.map((total, team) => ({ team, total })).sort((a, b) => b.total - a.total) : []);
   const teamTie = $derived(teamOrder.length > 1 && teamOrder[0].total === teamOrder[1].total);
+  /** Ended before anyone scored: no winner to name (development/plans/end-game.md). */
+  const nobodyScored = $derived(view.players.every((p) => p.score === 0));
   const title = $derived(
-    teamTotals
+    nobodyScored
+      ? t('gameEnded')
+      : teamTotals
       ? teamTie
         ? t('teamTie')
         : t('teamWins', { name: t(`team_${teamOrder[0].team}` as Key) })
@@ -36,7 +40,7 @@
   const CONFETTI = ['#dc001d', '#64c8b9', '#f5d547', '#b198db', '#6ea0eb', '#f8a171'];
   let pieces: { x: number; d: number; r: number; c: string; s: number }[] = $state([]);
   onMount(() => {
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches || nobodyScored) return;
     pieces = Array.from({ length: 36 }, (_, i) => ({
       x: Math.random() * 100,
       d: Math.random() * 0.6,
@@ -57,6 +61,10 @@
   </div>
 
   <header>
+    {#if view.ended}
+      <!-- The host ended it early: said on a strip of tape, as on the big screen. -->
+      <p class="tape">{t('endedBy', { name: view.ended.by })}</p>
+    {/if}
     <p class="label">{t('results')}</p>
     <h1>{title}</h1>
   </header>
@@ -68,6 +76,8 @@
     <p class="label players-label">{t('bestPlayers')}</p>
   {/if}
 
+  <!-- Ended before anyone scored: no podium, nobody's first. -->
+  {#if !nobodyScored}
   <ol class="podium">
     {#each podium as player, i (player.id)}
       <li class="place p{ranks[i]}" style:--i={i}>
@@ -78,8 +88,9 @@
       </li>
     {/each}
   </ol>
+  {/if}
 
-  {#if ranked.length > 3}
+  {#if ranked.length > 3 && !nobodyScored}
     <ol class="rest card">
       {#each ranked.slice(3) as player, i (player.id)}
         <li class:me={player.id === me.id}>
@@ -94,12 +105,13 @@
 
   <div class="actions">
     {#if isHost}
-      <button class="btn primary block" onclick={() => act('rematch')}>{t('rematch')}</button>
+      <button class="btn primary block" onclick={(e) => act('rematch', undefined, e)}>{t('rematch')}</button>
     {:else}
       <p class="waiting">{t('waitingFor', { name: host?.name ?? '…' })}</p>
     {/if}
   </div>
 
+  {#if view.history.length}
   <div class="recap">
     <p class="label">{t('recap')}</p>
     <ol>
@@ -140,6 +152,7 @@
       {/each}
     </ol>
   </div>
+  {/if}
 </section>
 
 <style>
@@ -153,6 +166,18 @@
   }
   header {
     text-align: center;
+  }
+  .tape {
+    display: inline-block;
+    margin: 0 0 14px;
+    padding: 6px 14px;
+    background: var(--red-soft);
+    color: var(--red-text);
+    font: 600 var(--ewo-text-2xs) / 1.3 var(--ewo-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    rotate: -2deg;
+    box-shadow: 0 1px 0 rgb(0 0 0 / 0.06);
   }
   header .label {
     margin: 0 0 6px;

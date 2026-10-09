@@ -16,6 +16,7 @@
   import SortBoard from './SortBoard.svelte';
   import TeamBoard from './TeamBoard.svelte';
   import Qr from './Qr.svelte';
+  import { TAG_MARK } from '../lib/mark';
 
   let { code }: { code: string } = $props();
 
@@ -58,6 +59,7 @@
   const teamTotals = $derived(view?.game?.teams && view.teams ? view.teams : null);
   const teamOrder = $derived(teamTotals ? teamTotals.map((score, team) => ({ team, score })).sort((a, b) => b.score - a.score) : []);
   const finalTitle = $derived.by(() => {
+    if (view?.players.every((p) => p.score === 0)) return t('gameEnded');
     if (teamTotals) {
       if (teamOrder.length > 1 && teamOrder[0].score === teamOrder[1].score) return t('teamTie');
       return t('teamWins', { name: t(`team_${teamOrder[0].team}` as Key) });
@@ -243,6 +245,7 @@
     </div>
   {:else if view.phase === 'final'}
     <div class="final">
+      {#if view.ended}<p class="tape">{t('endedBy', { name: view.ended.by })}</p>{/if}
       <p class="label">{t('results')}</p>
       <h1>{finalTitle}</h1>
       <div class="final-grid" class:with-teams={teamTotals}>
@@ -263,6 +266,8 @@
     </div>
   {/if}
 </div>
+
+<ewo-connection state={room.live || view?.phase === 'gone' ? 'online' : room.wasLive ? 'reconnecting' : 'connecting'}><span slot="mark">{@html TAG_MARK}</span></ewo-connection>
 
 <style>
   /* One unit that grows with the screen: a laptop shared in a call and a 4K projector both fit. */
@@ -648,6 +653,17 @@
     align-items: center;
     gap: calc(var(--u) * 1.2);
     text-align: center;
+  }
+  .final .tape {
+    display: inline-block;
+    margin: 0 0 16px;
+    padding: 8px 18px;
+    background: var(--red-soft);
+    color: var(--red-text);
+    font: 600 15px / 1.3 var(--ewo-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    rotate: -2deg;
   }
   .final .label {
     margin: 0;

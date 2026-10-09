@@ -13,6 +13,8 @@ export class Room {
   view: View | null = $state.raw(null);
   /** The stream is open. */
   live = $state(false);
+  /** It has been open before: a closed stream now is a reconnect, not the first connect. */
+  wasLive = $state(false);
   /** Server clock minus ours, for the countdown. */
   offset = $state(0);
 
@@ -20,6 +22,7 @@ export class Room {
   #attempt = 0;
   #timer = 0;
   #closed = false;
+  #ready = new Set<() => void>();
 
   constructor(readonly seat: Seat) {}
 
@@ -40,9 +43,29 @@ export class Room {
     document.removeEventListener('visibilitychange', this.#wake);
   }
 
-  /** A move; throws ApiError with the server's reason. */
-  act(action: string, body?: unknown) {
-    return api.act(this.seat, action, body);
+  /** A move; throws ApiError with the server's reason. `signal`: from track(), which may give up. */
+  act(action: string, body?: unknown, signal?: AbortSignal) {
+    return api.act(this.seat, action, body, signal);
+  }
+
+  /** Resolves with the first view (the room is ready to show); rejects when `signal` gives up. */
+  ready(signal?: AbortSignal) {
+    if (this.view) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const done = () => {
+        this.#ready.delete(done);
+        resolve();
+      };
+      this.#ready.add(done);
+      signal?.addEventListener(
+        'abort',
+        () => {
+          this.#ready.delete(done);
+          reject(signal.reason);
+        },
+        { once: true },
+      );
+    });
   }
 
   /** Milliseconds left until a server timestamp. */
@@ -58,6 +81,7 @@ export class Room {
     source.onopen = () => {
       this.#attempt = 0;
       this.live = true;
+      this.wasLive = true;
     };
     source.onmessage = (event) => {
       let view: View;
@@ -68,6 +92,7 @@ export class Room {
       }
       if (typeof view.now === 'number') this.offset = view.now - Date.now();
       this.view = view;
+      for (const done of [...this.#ready]) done();
       if (view.phase === 'gone') this.close();
     };
     source.onerror = () => {

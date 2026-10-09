@@ -2,8 +2,10 @@
   import { onMount } from 'svelte';
   import { t } from '../lib/i18n.svelte';
   import Settings from './Settings.svelte';
+  import type { Room } from '../lib/room.svelte';
 
-  let { code }: { code: string | null } = $props();
+  // `room` and `onleave`: during a game, the settings sheet opens with "This game" (end it, leave).
+  let { code, room = null, onleave = () => {} }: { code: string | null; room?: Room | null; onleave?: () => void } = $props();
 
   let scrolled = $state(false);
   let settingsOpen = $state(false);
@@ -37,7 +39,7 @@
   </div>
 </header>
 
-<Settings open={settingsOpen} onclose={closeSettings} />
+<Settings open={settingsOpen} onclose={closeSettings} {room} {onleave} />
 
 <style>
   .bar {

@@ -109,6 +109,31 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
     return r;
   }
 
+  // ---- a page's retry is the same request ---------------------------------------------------
+  // "New game" and a join carry a key the page keeps for every try of the same tap: a retry after the
+  // page gave up waiting (Folio's track(), 12 s) gets the seat the first try made, instead of a second
+  // room or a second seat (development/plans/waiting-states.md). Kept for a minute.
+
+  /** @type {Map<string, { seat: { code: string, player: string, token: string }, at: number }>} */
+  const keyed = new Map();
+  const KEY = /^[A-Za-z0-9-]{8,64}$/;
+  const KEY_TTL = 60_000;
+
+  function keyedSeat(key, code = null) {
+    if (typeof key !== 'string' || !KEY.test(key)) return null;
+    const t = clock.now();
+    for (const [k, v] of keyed) if (t - v.at > KEY_TTL) keyed.delete(k);
+    const hit = keyed.get(key);
+    if (!hit || (code && hit.seat.code !== code)) return null;
+    const p = rooms.get(hit.seat.code)?.players.get(hit.seat.player);
+    return p && !p.left ? { ...hit.seat } : null;
+  }
+
+  function remember(key, seat) {
+    if (typeof key === 'string' && KEY.test(key)) keyed.set(key, { seat, at: clock.now() });
+    return seat;
+  }
+
   function within(stamps, windowMs, limit) {
     const t = clock.now();
     while (stamps.length && stamps[0] <= t - windowMs) stamps.shift();
@@ -258,6 +283,8 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
             }
           : null,
       history: r.phase === 'final' ? r.history : [],
+      // The host ended the game early: who, for the results' "Ended early by …".
+      ended: r.phase === 'final' ? r.ended : null,
       now: clock.now(),
     };
   }
@@ -416,8 +443,11 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
       return rooms.size;
     },
 
-    /** @param {{ name: unknown, avatar?: unknown }} body */
-    create({ name, avatar }) {
+    /** @param {{ name: unknown, avatar?: unknown, key?: unknown }} body */
+    create({ name, avatar, key }) {
+      // A retry of the same "New game" (the page gave up on the first try): the same room and seat.
+      const again = keyedSeat(key);
+      if (again) return again;
       if (!cleanName(name)) throw new GameError('name');
       if (rooms.size >= LIMITS.rooms || !within(created, 10 * 60_000, LIMITS.roomsPer10Min)) throw new GameError('busy', 429);
       const code = newCode();
@@ -439,6 +469,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         anchor: null,
         teamScores: [],
         demo: null,
+        ended: null,
         seen: new Set(),
         notice: null,
         timer: null,
@@ -447,7 +478,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
       rooms.set(code, r);
       const p = addPlayer(r, name, avatar);
       r.host = p.id;
-      return { code, player: p.id, token: p.token };
+      return remember(key, { code, player: p.id, token: p.token });
     },
 
     /** A quick look before joining: does the room exist, and is it open? */
@@ -461,10 +492,13 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
      * Joins, or comes back: a known token gets the same seat (and score) again. A token alone that
      * no longer fits (kicked, or dropped from the lobby) is refused, so a reload doesn't sneak a
      * removed player back in under a new seat; they join again with their name.
-     * @param {{ name?: unknown, avatar?: unknown, token?: unknown }} body
+     * @param {{ name?: unknown, avatar?: unknown, token?: unknown, key?: unknown }} body
      */
-    join(code, { name, avatar, token }) {
+    join(code, { name, avatar, token, key }) {
       const r = room(code);
+      // A retry of the same join: the seat the first try made.
+      const again = keyedSeat(key, r.code);
+      if (again) return again;
       if (typeof token === 'string' && token) {
         for (const p of r.players.values()) {
           if (p.token === token && !p.left) return { code: r.code, player: p.id, token: p.token };
@@ -473,7 +507,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
       }
       const p = addPlayer(r, name, avatar);
       touch(r);
-      return { code: r.code, player: p.id, token: p.token };
+      return remember(key, { code: r.code, player: p.id, token: p.token });
     },
 
     view(code) {
@@ -580,6 +614,17 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
           touch(r);
           return;
         }
+        case 'end': {
+          // The host ends a running game for everyone: the results so far, "Ended early by …"
+          // (development/plans/end-game.md). A round not yet revealed doesn't count.
+          requireHost(r, p);
+          requirePhase(r, 'guess', 'reveal');
+          clock.clearTimeout(r.timer);
+          r.phase = 'final';
+          r.ended = { by: p.name };
+          touch(r);
+          return;
+        }
         case 'rematch': {
           requireHost(r, p);
           requirePhase(r, 'final');
@@ -588,6 +633,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
           r.round = null;
           r.history = [];
           r.demo = null;
+          r.ended = null;
           if (r.settings.teams !== r.game?.teams) spreadTeams(r);
           r.game = null;
           r.teamScores = [];
@@ -902,6 +948,7 @@ export function mergeSettings(current, body) {
  * @property {Item | null} anchor  higher or lower: the item that opens the game
  * @property {number[]} teamScores
  * @property {boolean | null} demo  this game plays demo items (null between games: the source decides)
+ * @property {{ by: string } | null} ended  the host ended this game early (null otherwise)
  * @property {Set<string>} seen
  * @property {string | null} notice
  * @property {any} timer

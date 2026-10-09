@@ -59,6 +59,16 @@ spirit of [guess-the-price.net](https://guess-the-price.net/). Live at
   price)|)`, at least 0. Too high and too low by the same factor score the same; half or double the
   price scores nothing; 10 % off scores about 850. Within 2 % is a "Bullseye". Speed doesn't count.
   The round's red highlight and the recap's "closest" go to the best real guess, never a joker.
+- **Waiting, shown where you tapped** (Folio's `track()`, `src/lib/waits.ts`): a button that waits
+  for the server stays pressed and locked until the answer, shows a little swinging price tag after
+  150 ms, says what it's doing after 1.2 s ("Spiel startet …"), "Dauert länger …" after 6 s, and
+  gives up at 12 s with "Nochmal" in place. New game and a join wait until the lobby's first view is
+  here, so it shows whole; a retried one carries a key and gets the same room or seat. The live
+  connection has one quiet pill under the bar (`<ewo-connection>`).
+- **Ending a game:** during a game the settings sheet opens with "Dieses Spiel": the host's "Spiel
+  beenden" and everyone's "Spiel verlassen", each after a second tap that says what happens. Ending
+  goes to the results so far, with "Vorzeitig beendet von …" on a strip of tape, on the big screen
+  too; a round not yet revealed doesn't count.
 - **Settings** (the sliders button in the bar) hold General, the same in every ewolution app:
   Language (System, Deutsch, English) and Theme (System, Light, Dark), both following the system
   until picked; a change fades in under a short blur. Installs to a home screen.
