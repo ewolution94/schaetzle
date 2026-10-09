@@ -38,10 +38,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      # The built page and the game, served by the real production server (demo items: no keys).
+      # The built page and the game, served by the real production server, on the demo items
+      # (SCHAETZLE_SOURCE=mock: CI never asks eBay).
       - name: Smoke test the production server
         run: |
-          PORT=5899 node server/server.mjs &
+          SCHAETZLE_SOURCE=mock PORT=5899 node server/server.mjs &
           for _ in $(seq 1 20); do curl -sf http://127.0.0.1:5899/healthz && break; sleep 0.5; done
           base=http://127.0.0.1:5899
           curl -sf $base/ | grep -q '<title>Schätzle</title>'

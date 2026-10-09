@@ -4,10 +4,10 @@ Guess the price of real eBay listings, together: a party game for our afternoon 
 spirit of [guess-the-price.net](https://guess-the-price.net/). Live at
 [schaetzle.ewolution.cloud](https://schaetzle.ewolution.cloud).
 
-> **Demo items for now.** Until the eBay keys are set, games draw from a built-in list of 95
-> made-up listings with estimated prices, and the game says "Demo" wherever it matters. Setting
-> `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` switches to live ebay.de listings without a code change
-> ([eBay](#ebay) below).
+> **Real sold listings, collected by hand.** eBay declined a developer account, so games play a
+> collection of ebay.de listings the user gathers with a bookmarklet ([eBay](#ebay) below). While
+> it's empty, or when it can't fill a game, the game plays a built-in list of 95 made-up listings
+> with estimated prices, and says "Demo" wherever it matters.
 
 - **Start a game, share the link.** A room gets a four-letter code (no vowels, so no code spells a
   word) and a link like `schaetzle.ewolution.cloud/KXPT`, with a QR code for the meeting room's
@@ -89,7 +89,8 @@ the whole view each time something changes.
 - **The host's seat moves on** after the host has been gone 15 seconds; people who close the page
   in the lobby leave the list after a minute; an empty room is forgotten after half an hour. A
   deploy (a restart) ends every game in progress.
-- **Items** come from `server/items/`: `ebay.mjs` (live) or `mock.mjs` (demo), picked by
+- **Items** come from `server/items/`: `collection.mjs` (the collected listings in
+  `collection.json`), `ebay.mjs` (the Browse API, with keys) or `mock.mjs` (demo), picked by
   `index.mjs`. The themes are curated keyword lists (`themes.mjs`), and a blocklist keeps listings
   out of a work meeting that have no place there. The host can skip an item anyway.
 - **Photos go through our own origin** (`server/images.mjs`): the browser only ever talks to
@@ -106,26 +107,31 @@ the whole view each time something changes.
 
 ## eBay
 
-The live source uses eBay's [Browse API](https://developer.ebay.com/api-docs/buy/browse/resources/item_summary/methods/search)
-on ebay.de: fixed-price listings located in Germany, priced in euros, in the chosen range, never
-"for parts or not working". One game costs about five calls (a token, reused for two hours, and four
-searches); eBay's default limit is 5,000 a day, and the server stops itself at 4,000.
+eBay declined the developer account (2026-10-09), so the server doesn't talk to eBay while a game
+runs (apart from the photos, which pass through `/img/`). Games play a **collection** of real ebay.de
+listings, `server/items/collection.json`, which the user builds up by hand:
 
-To switch it on:
+1. `npm run collector` prints a bookmarklet. Save it as a bookmark's address.
+2. On ebay.de, signed in, search for something and tick **Verkaufte Artikel** (sold items: the
+   price is what it sold for). Tap the bookmark: it reads the listings on the page, asks for the
+   category (it guesses from the search) and downloads a JSON file. Nothing is sent anywhere.
+3. `npm run collect -- ~/Downloads/schaetzle-*.json` adds the files to the collection: new listings
+   only, never spare parts or titles the blocklist catches, one listing per line. Commit and push it
+   like any change; the next image plays it.
 
-1. Create a developer account at [developer.ebay.com](https://developer.ebay.com/) (approval can
-   take a day) and a **production** keyset.
-2. Under *Alerts & Notifications*, opt out of marketplace account deletion notifications with
-   "I do not persist eBay data". That's true here: items live in a game's memory, and photos are
-   forgotten after 6 hours (eBay's limit for showing listing data). The keyset stays inactive until
-   this is done.
-3. Set `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` in the Portainer stack's environment variables
-   (never in the stack file) and redeploy the stack. The lobby's "Demo" badge disappears.
+A game draws from the host's categories and price range and mixes the searches the listings came
+from, so ten rounds aren't ten lamps. Short of listings there, it takes other categories in the same
+range; short even then, it plays the demo items, labelled "Demo". The more searches per category,
+the more varied the games: a few pages of sold listings per category is a good start.
 
-eBay's current docs call production Buy API access "intended for eBay partners". If the keyset is
-refused, the game shows "Couldn't load any items (auth)" in the lobby; `SCHAETZLE_SOURCE=mock`
-switches back to the demo items with the keys still set. `tests/ebay.test.mjs` uses a response
-shaped like eBay's documentation; replace it with a captured real one once the keys work.
+The bookmarklet reads eBay's 2026 results markup (`tools/ebay-page.mjs`); `tests/collection.test.mjs`
+runs it on a real page, as eBay sends it and as a browser holds it (`tests/fixtures/`). If eBay
+changes its page and the bookmarklet finds nothing, capture a new page there.
+
+The Browse API source (`server/items/ebay.mjs`) is still there: with `EBAY_CLIENT_ID` and
+`EBAY_CLIENT_SECRET` set in the Portainer stack's variables it takes over. A production keyset also
+needs the account-deletion notifications opted out with "I do not persist eBay data" (true there:
+items live in a game's memory, photos are forgotten after 6 hours).
 
 ## Run it
 
@@ -157,8 +163,8 @@ This mirrors Cantina, Atrium and Aale Spiele:
 |---|---|---|
 | `PORT` / `--port` | `8080` | Listen port |
 | `HOST` | `0.0.0.0` | Listen address |
-| `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | empty | eBay production keyset; both set means live listings |
-| `SCHAETZLE_SOURCE` | | `mock` forces the demo items even with keys |
+| `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | empty | eBay production keyset; both set means the Browse API instead of the collection |
+| `SCHAETZLE_SOURCE` | | `mock` forces the demo items |
 | `SCHAETZLE_CENSUS` | off | Census's ingest origin, `http://census:4901` on the NAS |
 
 ## Project layout
@@ -169,7 +175,8 @@ server/game.mjs           rooms, players, rounds, the clock (no I/O; tested with
 server/api.mjs            the game over HTTP: JSON moves, the SSE stream
 server/scoring.mjs        points for a guess, a pick (higher or lower) and an order (sort)
 server/images.mjs         product photos through our origin
-server/items/             ebay.mjs (live), mock.mjs (demo), themes.mjs (keywords, ranges, blocklist)
+server/items/             collection.mjs + collection.json, ebay.mjs (API), mock.mjs (demo), themes.mjs
+tools/                    the collector bookmarklet (collector.mjs, ebay-page.mjs) and its import (collect.mjs)
 server/census.mjs         forwards /_e.js and /_e to Census (visit counts)
 src/lib/room.svelte.ts    the live room: the stream, reconnects, moves
 src/lib/price.ts          reading and showing prices (5,80€)

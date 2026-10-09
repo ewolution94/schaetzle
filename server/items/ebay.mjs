@@ -159,24 +159,36 @@ export function createEbaySource({ clientId, clientSecret, images, marketplace =
         }),
       );
 
-      // Round-robin over the buckets, so a game mixes its keywords instead of showing ten lamps.
-      const picked = [];
-      const titles = new Set();
-      for (let i = 0; picked.length < count && buckets.some((b) => i < b.length); i++) {
-        for (const bucket of buckets) {
-          const item = bucket[i];
-          if (!item || picked.length >= count) continue;
-          const key = item.title.toLowerCase().replace(/\W+/g, ' ').trim();
-          if (titles.has(key)) continue;
-          titles.add(key);
-          picked.push(item);
-        }
-      }
+      const picked = mix(buckets, count);
       if (!picked.length) throw new SourceError('empty');
 
       return picked.map((item) => ({ ...item, images: item.images.map((url) => images.register(upsized(url))) }));
     },
   };
+}
+
+/**
+ * Round-robin over the buckets (one per keyword), so a game mixes its keywords instead of showing ten
+ * lamps; the same title twice counts once. Shared with the collection (collection.mjs).
+ * @template {{ title: string }} T
+ * @param {T[][]} buckets
+ * @param {number} count
+ * @returns {T[]}
+ */
+export function mix(buckets, count) {
+  const picked = [];
+  const titles = new Set();
+  for (let i = 0; picked.length < count && buckets.some((b) => i < b.length); i++) {
+    for (const bucket of buckets) {
+      const item = bucket[i];
+      if (!item || picked.length >= count) continue;
+      const key = item.title.toLowerCase().replace(/\W+/g, ' ').trim();
+      if (titles.has(key)) continue;
+      titles.add(key);
+      picked.push(item);
+    }
+  }
+  return picked;
 }
 
 /**

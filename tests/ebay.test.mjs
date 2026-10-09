@@ -150,10 +150,22 @@ test('eBay failures arrive as short codes, and a failed token is fetched again n
   await assert.rejects(down.draw({ count: 3, price: 'all', themes: ['tech'] }), { code: 'network' });
 });
 
-test('the keys pick the source; without them it is the demo list', () => {
+test('keys pick the API; else the collection when it has listings; else, or with SCHAETZLE_SOURCE=mock, the demo list', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
   const images = registry();
-  assert.equal(createSource({}, { images }).name, 'mock');
-  assert.equal(createSource({ EBAY_CLIENT_ID: 'a' }, { images }).name, 'mock');
-  assert.equal(createSource({ EBAY_CLIENT_ID: 'a', EBAY_CLIENT_SECRET: 'b' }, { images }).name, 'ebay');
+  const dir = mkdtempSync(join(tmpdir(), 'schaetzle-'));
+  const empty = join(dir, 'empty.json');
+  const full = join(dir, 'full.json');
+  writeFileSync(empty, '[]');
+  writeFileSync(full, JSON.stringify([{ id: 'ebay:1', theme: 'tech', keyword: 'Laptop', title: 'Laptop', price: 99, condition: 'Gebraucht', image: 'https://i.ebayimg.com/images/g/a/s-l500.webp', url: 'https://www.ebay.de/itm/1' }]));
+  assert.equal(createSource({}, { images, collection: empty }).name, 'mock');
+  assert.equal(createSource({}, { images, collection: join(dir, 'missing.json') }).name, 'mock');
+  assert.equal(createSource({}, { images, collection: full }).name, 'collection');
+  assert.equal(createSource({}, { images, collection: full }).demo, false);
+  assert.equal(createSource({ EBAY_CLIENT_ID: 'a' }, { images, collection: full }).name, 'collection');
+  assert.equal(createSource({ EBAY_CLIENT_ID: 'a', EBAY_CLIENT_SECRET: 'b' }, { images, collection: full }).name, 'ebay');
   assert.equal(createSource({ EBAY_CLIENT_ID: 'a', EBAY_CLIENT_SECRET: 'b', SCHAETZLE_SOURCE: 'mock' }, { images }).name, 'mock');
+  assert.equal(createSource({ SCHAETZLE_SOURCE: 'mock' }, { images, collection: full }).name, 'mock');
 });

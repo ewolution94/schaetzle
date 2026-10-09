@@ -212,7 +212,8 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
     return {
       code: r.code,
       phase: r.phase,
-      demo: source.demo,
+      // A game that fell back to the demo list says so; between games, the source decides.
+      demo: r.demo ?? source.demo,
       version: r.version,
       host: r.host,
       settings: r.settings,
@@ -379,6 +380,8 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
       return;
     }
     for (const item of items) r.seen.add(item.id);
+    // Demo items carry their emoji art; live listings have photos (server/items/index.mjs → withFallback).
+    r.demo = items.some((item) => item.art);
     r.game = { mode, teams: r.settings.teams };
     r.queue = deal.queue;
     r.spares = deal.spares;
@@ -435,6 +438,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
         game: null,
         anchor: null,
         teamScores: [],
+        demo: null,
         seen: new Set(),
         notice: null,
         timer: null,
@@ -583,6 +587,7 @@ export function createGames({ source, clock = { now: Date.now, setTimeout: (fn, 
           r.phase = 'lobby';
           r.round = null;
           r.history = [];
+          r.demo = null;
           if (r.settings.teams !== r.game?.teams) spreadTeams(r);
           r.game = null;
           r.teamScores = [];
@@ -896,6 +901,7 @@ export function mergeSettings(current, body) {
  * @property {{ mode: string, teams: number } | null} game  the game being played, from its start to the rematch
  * @property {Item | null} anchor  higher or lower: the item that opens the game
  * @property {number[]} teamScores
+ * @property {boolean | null} demo  this game plays demo items (null between games: the source decides)
  * @property {Set<string>} seen
  * @property {string | null} notice
  * @property {any} timer
