@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { readSearchPage } from '../tools/ebay-page.mjs';
 import { bookmarklet, collectorCode } from '../tools/collector.mjs';
 import { addFile, formatCollection } from '../tools/collect.mjs';
-import { createCollectionSource } from '../server/items/collection.mjs';
+import { PER_KEYWORD, createCollectionSource } from '../server/items/collection.mjs';
 import { createMockSource } from '../server/items/mock.mjs';
 import { withFallback } from '../server/items/index.mjs';
 import { seeded, setup } from './helpers.mjs';
@@ -149,7 +149,9 @@ test('a game mixes the keywords of the host’s categories, then takes others in
   const items = collection([
     ['kitchen', 'Toaster', 6],
     ['kitchen', 'Wasserkocher', 6],
+    ['kitchen', 'Topfset', 6],
     ['tech', 'Laptop', 6],
+    ['tech', 'Tablet', 6],
     ['garden', 'Rasenmäher', 6],
     ['garden', 'Kugelgrill', 4, 900],
   ]);
@@ -158,15 +160,16 @@ test('a game mixes the keywords of the host’s categories, then takes others in
   const ten = await source.draw({ count: 10, price: 'everyday', themes: ['kitchen', 'tech'], exclude: new Set() });
   assert.equal(ten.length, 10);
   assert.ok(ten.every((item) => item.theme !== 'garden'));
-  assert.equal(new Set(ten.map((item) => item.title.split(' ')[0])).size, 3, 'all three keywords');
+  assert.equal(new Set(ten.map((item) => item.title.split(' ')[0])).size, 5, 'all five searches');
   assert.ok(ten.every((item) => item.images[0].startsWith('/img/') && item.art === null));
   assert.match(images.registered[0][0], /s-l960\.webp$/);
 
-  // Short of kitchen and tech, it takes garden in the same range, never the 900 € grills.
-  const more = await source.draw({ count: 20, price: 'everyday', themes: ['kitchen', 'tech'], exclude: new Set() });
-  assert.ok(more.some((item) => item.theme === 'garden'));
+  // Short of kitchen and tech (five searches, three each), it takes garden in the same range, never
+  // the 900 € grills.
+  const more = await source.draw({ count: 18, price: 'everyday', themes: ['kitchen', 'tech'], exclude: new Set() });
+  assert.equal(more.filter((item) => item.theme === 'garden').length, 3);
   assert.ok(more.every((item) => item.price <= 500));
-  await assert.rejects(source.draw({ count: 30, price: 'everyday', themes: ['tech'], exclude: new Set() }), { code: 'empty' });
+  await assert.rejects(source.draw({ count: 19, price: 'everyday', themes: ['tech'], exclude: new Set() }), { code: 'empty' });
 });
 
 test('a game the collection can’t fill plays the demo list, and says "demo"', async () => {
@@ -181,11 +184,37 @@ test('a game the collection can’t fill plays the demo list, and says "demo"', 
 });
 
 test('a full game from the collection is not demo', async () => {
-  const source = withFallback(createCollectionSource({ items: collection([['tech', 'Laptop', 10], ['tech', 'Tablet', 10]]), images: registry() }), createMockSource(), () => {});
+  const searches = ['Laptop', 'Tablet', 'Kopfhörer', 'Smartphone', 'Spielkonsole', 'Smartwatch'].map((keyword) => ['tech', keyword, 4]);
+  const source = withFallback(createCollectionSource({ items: collection(searches), images: registry() }), createMockSource(), () => {});
   const { games } = setup({ source });
   const { code, token } = games.create({ name: 'Anna' });
   await games.act(code, token, 'settings', { themes: ['tech'] });
   await games.act(code, token, 'start');
   assert.equal(games.view(code).phase, 'guess');
   assert.equal(games.view(code).demo, false);
+});
+
+test('one search never fills a game: at most three of it, spread over the rounds', async () => {
+  // Twenty coffee machines and a few of everything else.
+  const items = collection([
+    ['kitchen', 'Kaffeemaschine', 20],
+    ['kitchen', 'Toaster', 3],
+    ['kitchen', 'Wasserkocher', 3],
+    ['kitchen', 'Topfset', 3],
+    ['tech', 'Laptop', 3],
+  ]);
+  const source = createCollectionSource({ items, images: registry(), random: seeded(6) });
+  const game = await source.draw({ count: 12, price: 'everyday', themes: ['kitchen'], exclude: new Set() });
+  const count = (keyword) => game.filter((item) => item.title.startsWith(keyword)).length;
+  assert.equal(PER_KEYWORD, 3);
+  assert.equal(count('Kaffeemaschine'), 3);
+  // Kitchen had only four searches (12 at three each), so nothing came from tech.
+  assert.equal(game.length, 12);
+  // Never two coffee machines in a row.
+  for (let i = 1; i < game.length; i++) assert.ok(!(game[i].title.startsWith('Kaffeemaschine') && game[i - 1].title.startsWith('Kaffeemaschine')));
+
+  // A game asking for more than the searches can give takes other categories, then gives up.
+  const more = await source.draw({ count: 15, price: 'everyday', themes: ['kitchen'], exclude: new Set() });
+  assert.equal(more.filter((item) => item.theme === 'tech').length, 3);
+  await assert.rejects(source.draw({ count: 16, price: 'everyday', themes: ['kitchen'], exclude: new Set() }), { code: 'empty' });
 });

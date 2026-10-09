@@ -4,15 +4,20 @@
 // except the photos, which pass through our origin (server/images.mjs).
 //
 // A game draws from the host's categories and price range, mixing the search keywords the listings
-// were collected under, so ten rounds aren't ten lamps. Short of listings there, it takes other
-// categories in the same range; short even then, it fails and the game plays the demo items
-// (index.mjs → withFallback).
+// were collected under, so ten rounds aren't ten lamps: at most PER_KEYWORD listings of one search a
+// game (the user: twenty coffee machines collected must not make a coffee-machine game), spread over
+// the rounds, and look-alike titles count once. Short of listings there, it takes other categories in
+// the same range; short even then, it fails and the game plays the demo items (index.mjs →
+// withFallback).
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PRICES } from './themes.mjs';
 import { shuffle } from './mock.mjs';
 import { SourceError, mix, upsized } from './ebay.mjs';
+
+/** Listings of one search per game, at most. */
+export const PER_KEYWORD = 3;
 
 /** @typedef {import('./mock.mjs').Item} Item */
 /** @typedef {import('./themes.mjs').Theme} Theme */
@@ -49,6 +54,19 @@ export function readCollection(path) {
   }
 }
 
+const keyOf = (item) => `${item.theme}|${item.keyword.toLowerCase()}`;
+
+/** Shops list one thing many times ("Herren Sneaker Turnschuhe …"): one per opening three words. */
+function distinct(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = item.title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ').slice(0, 3).join(' ');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /**
  * @param {{ items: CollectionItem[], images: { register(candidates: string[]): string }, random?: () => number }} options
  */
@@ -71,11 +89,15 @@ export function createCollectionSource({ items, images, random = Math.random }) 
         const left = tier.filter((item) => !taken.has(item.id));
         const byKeyword = new Map();
         for (const item of shuffle(left, random)) {
-          const key = `${item.theme}|${item.keyword}`;
+          const key = keyOf(item);
           if (!byKeyword.has(key)) byKeyword.set(key, []);
           byKeyword.get(key).push(item);
         }
-        for (const item of mix(shuffle([...byKeyword.values()], random), count - picked.length)) {
+        // What this game already has of each search counts against its share.
+        const used = new Map();
+        for (const item of picked) used.set(keyOf(item), (used.get(keyOf(item)) ?? 0) + 1);
+        const buckets = [...byKeyword].map(([key, list]) => distinct(list).slice(0, Math.max(0, PER_KEYWORD - (used.get(key) ?? 0))));
+        for (const item of mix(shuffle(buckets, random), count - picked.length)) {
           taken.add(item.id);
           picked.push(item);
         }
