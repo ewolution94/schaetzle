@@ -1,6 +1,8 @@
 <script lang="ts">
-  // The item's pictures: eBay's photos to swipe through (on a white plate, as shops show them), or a
-  // demo item's emoji on a soft OTTO tint. `children` sits on top, e.g. the price tag at the reveal.
+  // The item's pictures: eBay's photos to swipe through, or a demo item's emoji on a soft OTTO tint.
+  // A photo is shown whole, and the same photo, zoomed and blurred, fills the frame around it (the
+  // user, 2026-10-09: no white bands beside a tall or wide picture). `children` sits on top, e.g. the
+  // price tag at the reveal.
   import type { Snippet } from 'svelte';
   import type { Item } from '../lib/api';
   import { t } from '../lib/i18n.svelte';
@@ -24,7 +26,10 @@
   {#if item.images.length}
     <div class="photos" bind:this={track} onscroll={onScroll}>
       {#each item.images as src, i (src)}
-        <img {src} alt={item.images.length > 1 ? t('photo', { n: i + 1, total: item.images.length }) : ''} decoding="async" draggable="false" />
+        <div class="slide">
+          <img class="fill" {src} alt="" aria-hidden="true" decoding="async" draggable="false" />
+          <img class="photo" {src} alt={item.images.length > 1 ? t('photo', { n: i + 1, total: item.images.length }) : ''} decoding="async" draggable="false" />
+        </div>
       {/each}
     </div>
     {#if item.images.length > 1}
@@ -69,14 +74,33 @@
   .photos::-webkit-scrollbar {
     display: none;
   }
-  img {
+  .slide {
+    position: relative;
     flex: none;
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    overflow: hidden;
     scroll-snap-align: center;
+  }
+  img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     user-select: none;
     -webkit-user-drag: none;
+  }
+  /* The backdrop: the photo itself, filling the frame, soft and a little larger so its blurred edges
+     stay outside. Still, never animated (learnings/performance.md). */
+  .fill {
+    object-fit: cover;
+    filter: blur(22px) saturate(1.2);
+    scale: 1.25;
+  }
+  /* The photo, whole, lifted off its backdrop. */
+  .photo {
+    object-fit: contain;
+    filter: drop-shadow(0 8px 20px rgb(0 0 0 / 0.22));
   }
   .dots {
     position: absolute;
