@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { readSearchPage } from '../tools/ebay-page.mjs';
-import { KNOWN, bookmarklet, collectorCode, guessTheme } from '../tools/collector.mjs';
+import { KNOWN, bookmarklet, checklist, collectorCode, formatChecklist, guessTheme } from '../tools/collector.mjs';
 import { addFile, formatCollection } from '../tools/collect.mjs';
 import { PER_KEYWORD, createCollectionSource } from '../server/items/collection.mjs';
 import { createMockSource } from '../server/items/mock.mjs';
@@ -242,4 +242,23 @@ test('the bookmark pre-fills the category of a search it knows', () => {
   // The bookmarklet guesses the same way.
   const { asked } = runCollector(BROWSER, { url: 'https://www.ebay.de/sch/i.html?_nkw=Kinositze&LH_Sold=1', answer: 'odd' });
   assert.equal(asked.guess, 'odd');
+});
+
+test('the checklist ticks the ideas the collection has, per category', () => {
+  const items = [
+    ...collection([['garden', 'Weber Kugelgrill 57 cm', 3], ['garden', 'Gartenzwerg', 2], ['garden', 'Rasentraktor', 4], ['odd', 'Kinositze', 1]]),
+  ];
+  const list = checklist(items, { garden: ['Weber Kugelgrill', 'Gartenzwerg', 'Strandkorb'], odd: ['Kinositze', 'Parkuhr'] });
+  const garden = list.find((t) => t.theme === 'garden');
+  assert.equal(garden.listings, 9);
+  assert.equal(garden.searches, 3);
+  assert.equal(garden.done, 2);
+  assert.deepEqual(garden.rows, [{ idea: 'Weber Kugelgrill', count: 3 }, { idea: 'Gartenzwerg', count: 2 }, { idea: 'Strandkorb', count: 0 }]);
+  assert.deepEqual(garden.others, [{ search: 'rasentraktor', count: 4 }]);
+  const text = formatChecklist(list);
+  assert.match(text, /garden: 9 listings from 3 searches, 2 of 3 ideas done/);
+  assert.match(text, /✓ Weber Kugelgrill \(3\)/);
+  assert.match(text, /· Strandkorb/);
+  assert.match(text, /\+ also: rasentraktor \(4\)/);
+  assert.match(text, /odd: 1 listings from 1 searches, 1 of 2 ideas done/);
 });

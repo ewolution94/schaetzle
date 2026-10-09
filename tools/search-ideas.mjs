@@ -1,6 +1,6 @@
 // Search ideas per category for the collector (tools/collector.mjs): the bookmark pre-fills the
 // category of a search it knows (these, and the game's own keywords in server/items/themes.mjs),
-// and `npm run collector -- --ideas` lists them. The first lot are well-known things, the second
+// and `npm run collector` shows them as a checklist. The first lot are well-known things, the second
 // lot ones nobody can price (the user asked for both, 2026-10-09). Searches on ebay.de, sold items.
 
 export const IDEAS = {

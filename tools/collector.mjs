@@ -5,11 +5,13 @@
 // files go into the collection with `npm run collect -- <files>` (tools/collect.mjs). Nothing here
 // talks to eBay: the bookmarklet only reads the page that's already open in the user's browser.
 //
-//   npm run collector             the bookmarklet, to paste as a bookmark's address
+//   npm run collector             the checklist (which search ideas are in the collection, per
+//                                 category), then the bookmarklet, also put on the clipboard
 //   npm run collector -- --plain  the same code without `javascript:`, for the browser's console
-//   npm run collector -- --ideas  search ideas per category (tools/search-ideas.mjs)
 
+import { execFileSync } from 'node:child_process';
 import { readSearchPage } from './ebay-page.mjs';
+import { COLLECTION_PATH, readCollection } from '../server/items/collection.mjs';
 import { IDEAS } from './search-ideas.mjs';
 import { THEMES } from '../server/items/themes.mjs';
 
@@ -86,6 +88,48 @@ export function collectorCode() {
 })();`;
 }
 
+const norm = (text) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+/**
+ * Which search ideas the collection already has, per category: an idea counts as done when a search
+ * was that idea or a more specific one ("Weber Kugelgrill 57 cm" ticks "Weber Kugelgrill"). Searches
+ * that aren't ideas come back as `others`.
+ * @param {import('../server/items/collection.mjs').CollectionItem[]} collection
+ * @param {Record<string, string[]>} ideas
+ */
+export function checklist(collection, ideas) {
+  return Object.entries(ideas).map(([theme, list]) => {
+    const mine = collection.filter((item) => item.theme === theme);
+    const bySearch = new Map();
+    for (const item of mine) bySearch.set(norm(item.keyword), (bySearch.get(norm(item.keyword)) ?? 0) + 1);
+    const matched = new Set();
+    const rows = list.map((idea) => {
+      let count = 0;
+      for (const [search, n] of bySearch) {
+        if (search === norm(idea) || search.includes(norm(idea))) {
+          count += n;
+          matched.add(search);
+        }
+      }
+      return { idea, count };
+    });
+    const others = [...bySearch].filter(([search]) => search && !matched.has(search)).map(([search, count]) => ({ search, count }));
+    return { theme, listings: mine.length, searches: bySearch.size, done: rows.filter((r) => r.count).length, rows, others };
+  });
+}
+
+/** The checklist as text: ✓ done (listings), · still open. */
+export function formatChecklist(list) {
+  return list
+    .map(({ theme, listings, searches, done, rows, others }) => {
+      const head = `${theme}: ${listings} listings from ${searches} searches, ${done} of ${rows.length} ideas done`;
+      const lines = rows.map((r) => (r.count ? `  ✓ ${r.idea} (${r.count})` : `  · ${r.idea}`));
+      const more = others.length ? [`  + also: ${others.map((o) => `${o.search} (${o.count})`).join(', ')}`] : [];
+      return [head, ...lines, ...more].join('\n');
+    })
+    .join('\n\n');
+}
+
 /** The bookmark's address: the code without its comments and indentation, so it stays short. */
 export function bookmarklet() {
   const code = collectorCode()
@@ -97,14 +141,23 @@ export function bookmarklet() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  if (process.argv.includes('--ideas')) {
-    for (const [theme, ideas] of Object.entries(IDEAS)) console.log(`${theme}\n  ${ideas.join(', ')}\n`);
-  } else if (process.argv.includes('--plain')) {
+  if (process.argv.includes('--plain')) {
     console.log(collectorCode());
   } else {
-    console.log(`Save this as a bookmark's address (URL), then tap the bookmark on an ebay.de search
-results page (signed in, with "Verkaufte Artikel" ticked). It downloads a JSON file; add it with
-npm run collect -- ~/Downloads/schaetzle-*.json\n`);
-    console.log(bookmarklet());
+    console.log(formatChecklist(checklist(readCollection(COLLECTION_PATH), IDEAS)));
+    const address = bookmarklet();
+    let copied = false;
+    try {
+      execFileSync('pbcopy', { input: address });
+      copied = true;
+    } catch {
+      // not a Mac, or no clipboard: copy the line below by hand
+    }
+    console.log(`\n${'─'.repeat(72)}
+The bookmark${copied ? ' (already on your clipboard)' : ''}: save it as a bookmark's address (URL). On
+ebay.de, signed in, search and tick "Verkaufte Artikel", then tap the bookmark. Add the file it
+downloads with: npm run collect -- ~/Downloads/schaetzle-*.json
+${'─'.repeat(72)}\n`);
+    console.log(address);
   }
 }

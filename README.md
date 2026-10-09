@@ -121,11 +121,13 @@ eBay declined the developer account (2026-10-09), so the server doesn't talk to 
 runs (apart from the photos, which pass through `/img/`). Games play a **collection** of real ebay.de
 listings, `server/items/collection.json`, which the user builds up by hand:
 
-1. `npm run collector` prints a bookmarklet. Save it as a bookmark's address.
+1. `npm run collector` prints a checklist of search ideas per category (✓ the ones the collection
+   already has, with their listings; · the open ones), then the bookmarklet, which it also puts on the
+   clipboard. Save it as a bookmark's address.
 2. On ebay.de, signed in, search for something and tick **Verkaufte Artikel** (sold items: the
    price is what it sold for). Tap the bookmark: it reads the listings on the page, asks for the
-   category (pre-filled when it knows the search: the game's keywords and the ideas that
-   `npm run collector -- --ideas` lists) and downloads a JSON file. Nothing is sent anywhere.
+   category (pre-filled when it knows the search: the game's keywords and the checklist's ideas)
+   and downloads a JSON file. Nothing is sent anywhere.
 3. `npm run collect -- ~/Downloads/schaetzle-*.json` adds the files to the collection: new listings
    only, never spare parts or titles the blocklist catches, one listing per line. Commit and push it
    like any change; the next image plays it.
