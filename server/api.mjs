@@ -81,7 +81,7 @@ export function createApi({ games, demo }) {
       res.end();
       return;
     }
-    const beat = setInterval(() => res.write(': ping\n\n'), HEARTBEAT);
+    const beat = setInterval(() => res.write('event: ping\ndata: 1\n\n'), HEARTBEAT);
     beat.unref?.();
     const done = () => {
       clearInterval(beat);
