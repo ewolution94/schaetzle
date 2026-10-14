@@ -228,8 +228,10 @@
   </ul>
 
   {#if isHost && round.skips > 0}
+    <!-- The words and the count in one line, so they share a baseline (as flex items, each was centred
+         on its own and the smaller count sat a pixel high). -->
     <button class="btn quiet skip" onclick={(e) => act('skip', undefined, e)}>
-      {t('skip')} <span class="label">{t('skipsLeft', { n: round.skips })}</span>
+      <span>{t('skip')} <span class="label">{t('skipsLeft', { n: round.skips })}</span></span>
     </button>
   {/if}
 {/snippet}
@@ -433,7 +435,9 @@
   }
   .skip {
     align-self: flex-start;
-    gap: 8px;
+  }
+  .skip .label {
+    margin-left: 4px;
   }
   /* Der Preis ist heiß: the one rule, right under the field. */
   .rule {

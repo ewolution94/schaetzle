@@ -78,4 +78,23 @@
     padding: 0 calc(var(--h) * 0.24) 0 8px;
     border-radius: 0 20px 20px 0;
   }
+  /* The caption and the price trimmed to their ink (cap height to baseline), so the pair sits in the
+     tag's middle. Untrimmed, each line keeps its face's room above the caps and below the baseline,
+     the price's four times the caption's, and the pair sat 2.4 px high on the reveal (3.9 px on the
+     big screen). The gaps keep the space the untrimmed lines had between them. */
+  @supports (text-box: trim-both cap alphabetic) {
+    .caption,
+    .value {
+      text-box: trim-both cap alphabetic;
+    }
+    .body {
+      gap: 9px;
+    }
+    .lg .body {
+      gap: 11px;
+    }
+    .xl .body {
+      gap: calc(var(--h) * 0.12);
+    }
+  }
 </style>

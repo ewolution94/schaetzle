@@ -284,6 +284,8 @@
   }
   .sub {
     display: flex;
+    /* The verdict's pill in the line's middle: stretched to the row, its text sat at its top. */
+    align-items: center;
     gap: 8px;
     color: var(--ewo-fg-3);
     font-size: 13px;
