@@ -8,11 +8,12 @@
 //   node tools/qa.mjs [base] [outdir]     W=390 H=844 LANG_UI=de ENGINE=webkit ROUNDS=5 by default
 //   MODES=classic,hot node tools/qa.mjs … only these modes (classic, hot, higher, sort)
 //   AUDIT=1 node tools/qa.mjs …           every shot also checks that text sits in the middle of its box
-//                                         and that numbers keep full-height digits (tools/text-audit.mjs)
+//                                         that stacked lines sit there as a block, and that numbers keep
+//                                         full-height digits (tools/text-audit.mjs)
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { digitAudit, textAudit } from './text-audit.mjs';
+import { digitAudit, stackAudit, textAudit } from './text-audit.mjs';
 
 // Playwright lives in Folio's node_modules (development/folio), wherever this checkout sits.
 let up = dirname(fileURLToPath(import.meta.url));
@@ -33,15 +34,20 @@ const MODES = (process.env.MODES ?? 'classic,hot,higher,sort').split(',');
 /** Text off its box's middle by this many px or more, at every shot (tools/text-audit.mjs). */
 const AUDIT = process.env.AUDIT ? Number(process.env.AUDIT) : 0;
 // Not centred on purpose: the podium's numbers stand at the top of their steps; a team's name stands
-// on its coloured rule (an underline, not a box); the price line's avatars are emblems, whose drawn
-// initials the audit would measure against the line's track; higher or lower's reveal heads each side
-// with its way, over the avatars who picked it (a side nobody picked has only its heading).
-const AUDIT_SKIP = ['.podium .step', '.team > header', '.line > .track', '.side-of'];
+// on its coloured rule (an underline, not a box); higher or lower's reveal heads each side with its
+// way, over the avatars who picked it (a side nobody picked has only its heading).
+const AUDIT_SKIP = ['.podium .step', '.team > header', '.side-of'];
+// Stacked lines that aren't a label's: the lobby's mode buttons stretch to their grid row and keep their
+// names at the top, in line across the row; cards hold a heading over a paragraph (the card's padding,
+// the paragraph's own leading below its last line); a result row's columns stand beside its avatar, and
+// the bullseye badge over the points is a box of its own.
+const STACK_SKIP = [...AUDIT_SKIP, '.modes > .mode', '.card.settings', '.mode-card', '.results > li'];
 const desktop = W >= 1000;
 mkdirSync(OUT, { recursive: true });
 
 const problems = [];
 const offCentre = new Map();
+const offStack = new Map();
 const oldDigits = new Map();
 const say = (line) => console.log(line);
 const browser = await playwright[ENGINE].launch();
@@ -86,6 +92,10 @@ async function snap(p, label, { quick = false } = {}) {
   for (const row of await p.page.evaluate(textAudit, { min: AUDIT, skip: AUDIT_SKIP })) {
     const key = `${row.where} | ${row.text.replace(/\d+/g, '#')}`;
     if (!offCentre.has(key)) offCentre.set(key, { ...row, at: name });
+  }
+  for (const row of await p.page.evaluate(stackAudit, { min: AUDIT, skip: STACK_SKIP })) {
+    const key = `${row.where} | ${row.text.replace(/\d+/g, '#')}`;
+    if (!offStack.has(key)) offStack.set(key, { ...row, at: name });
   }
   for (const row of await p.page.evaluate(digitAudit)) {
     const key = `${row.where} | ${row.text.replace(/\d+/g, '#')}`;
@@ -318,6 +328,13 @@ if (offCentre.size)
     `text off the middle of its box in ${offCentre.size} places (px, + low, − high; bias: the font's own share):\n  ${[...offCentre.values()]
       .sort((a, b) => Math.abs(b.off) - Math.abs(a.off))
       .map((r) => `${r.off > 0 ? '+' : ''}${r.off} (bias ${r.bias}) ${r.where} "${r.text}" ${r.font} h${r.height} @${r.at}`)
+      .join('\n  ')}`,
+  );
+if (offStack.size)
+  problems.push(
+    `stacked lines off the middle of their box in ${offStack.size} places (px, + low, − high):\n  ${[...offStack.values()]
+      .sort((a, b) => Math.abs(b.off) - Math.abs(a.off))
+      .map((r) => `${r.off > 0 ? '+' : ''}${r.off} ${r.where} "${r.text}" ${r.lines} lines h${r.height} @${r.at}`)
       .join('\n  ')}`,
   );
 if (oldDigits.size)

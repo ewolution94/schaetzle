@@ -164,8 +164,8 @@ the API: home, Settings, the avatar maker, the join page, the lobby, every mode 
 joker, waiting buttons, a toast, the connection pill, the big screen at desktop widths, and a game
 ended early. Shots go to `/tmp/schaetzle-qa/`; console errors and sideways overflow are listed. `W=1280
 H=800`, `LANG_UI=en`, `ENGINE=chromium`, `MODES=classic,sort` and `ROUNDS` change the run; `AUDIT=1` also
-checks that every label sits in the middle of its box and that digits stay full height
-(`tools/text-audit.mjs`, from development/plans/text-centering.md). With `SCHAETZLE_SOURCE=mock` on
+checks that every label sits in the middle of its box, stacked lines too, and that digits stay full height
+(`tools/text-audit.mjs`, from development/plans/text-centering.md, with text drawn in an SVG left out). With `SCHAETZLE_SOURCE=mock` on
 the server it plays the demo items.
 
 With `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` in the environment, the dev server draws live

@@ -50,7 +50,8 @@ export function textAudit({ min = 1, maxHeight = 96, skip = [] } = {}) {
         if (n.shadowRoot) walk(n.shadowRoot);
         continue;
       }
-      if (n.textContent.trim()) texts.push(n);
+      // Text drawn in an <svg> (an emblem's initial, a card's face) is a picture, not a label (Schätzle).
+      if (n.textContent.trim() && !n.parentElement?.closest('svg')) texts.push(n);
     }
   };
   walk(document.body);
@@ -194,4 +195,125 @@ export function capCentred(family, weight = 700) {
   const a = m.fontBoundingBoxAscent / 1000, d = m.fontBoundingBoxDescent / 1000, cap = m.actualBoundingBoxAscent / 1000;
   const pct = (x) => `${Math.round(x * 1000) / 10}%`;
   return { ascent: pct((a + d + cap) / 2), descent: pct((a + d - cap) / 2), bias: Math.round(((a - d - cap) / 2) * 1000) / 1000 };
+}
+
+// Stacked lines in one box (a caption over a big number, a name over a role): textAudit leaves them
+// out, but the block as a whole should sit in the middle. Measures the ink block, from the top line's
+// cap height to the bottom line's baseline, against the box's middle (Schätzle's price tag sat 2.4 px
+// high: each line keeps its face's room above the caps and below the baseline). Boxes with anything
+// else in the flow above or below the text, boxes under a rotation (their rect is the rotated shape's
+// bounds), and plain block boxes taller than their content (a panel or a list that starts at its top
+// by design; CDNMS's team lists and docks) are left out; buttons and flex or grid boxes still count.
+// Lines are rows whose text overlaps vertically: a name beside a bigger number is one row, not two
+// (CDNMS's score chip). Same options as textAudit; a box may be taller (`maxHeight` 160).
+export function stackAudit({ min = 1, maxHeight = 160, skip = [] } = {}) {
+  const ctx = document.createElement('canvas').getContext('2d');
+  const fonts = new Map();
+  const fontOf = (cs) => {
+    const key = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    if (!fonts.has(key)) {
+      ctx.font = key;
+      const m = ctx.measureText('H');
+      fonts.set(key, { cap: m.actualBoundingBoxAscent, ascent: m.fontBoundingBoxAscent, descent: m.fontBoundingBoxDescent });
+    }
+    return fonts.get(key);
+  };
+  const clear = (c) => !c || c === 'transparent' || /rgba?\([^)]*,\s*0\)$/.test(c) || /\/\s*0\)$/.test(c);
+  const boxy = (el) => {
+    if (el.matches('button, [role=button], a.btn, summary, label.chip, output')) return true;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'inline' || cs.display === 'contents') return false;
+    if (!clear(cs.backgroundColor) || cs.backgroundImage !== 'none' || cs.boxShadow !== 'none') return true;
+    return ['Top', 'Bottom'].some((s) => parseFloat(cs[`border${s}Width`]) > 0 && !clear(cs[`border${s}Color`]));
+  };
+  const rotated = (el) => {
+    for (let e = el; e && e !== document.documentElement; e = e.parentElement ?? e.getRootNode().host) {
+      const t = getComputedStyle(e).transform;
+      if (t && t !== 'none') {
+        const m = new DOMMatrixReadOnly(t);
+        if (Math.abs(m.b) > 1e-3 || Math.abs(m.c) > 1e-3) return true;
+      }
+      if (getComputedStyle(e).rotate !== 'none') return true;
+    }
+    return false;
+  };
+  const path = (el) => {
+    const name = (e) => e.tagName.toLowerCase() + [...e.classList].filter((c) => !c.startsWith('svelte-')).map((c) => `.${c}`).join('');
+    const parts = [name(el)];
+    let up = el.parentElement ?? el.getRootNode().host;
+    for (let i = 0; i < 2 && up && up !== document.body; i++, up = up.parentElement ?? up.getRootNode().host) parts.unshift(name(up));
+    return parts.join(' > ');
+  };
+  const texts = [];
+  const walk = (root) => {
+    const it = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    for (let n = it.nextNode(); n; n = it.nextNode()) {
+      if (n.nodeType === 1) {
+        if (n.shadowRoot) walk(n.shadowRoot);
+        continue;
+      }
+      // Text drawn in an <svg> (an emblem's initial, a card's face) is a picture, not a label (Schätzle).
+      if (n.textContent.trim() && !n.parentElement?.closest('svg')) texts.push(n);
+    }
+  };
+  walk(document.body);
+  const boxes = new Map();
+  for (const t of texts) {
+    let el = t.parentElement;
+    while (el && el !== document.body && !boxy(el)) el = el.parentElement ?? el.getRootNode().host;
+    if (!el || el === document.body) continue;
+    const range = document.createRange();
+    range.selectNodeContents(t);
+    const rects = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+    const cs = getComputedStyle(t.parentElement);
+    if (!rects.length || cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue;
+    const f = fontOf(cs);
+    if (!boxes.has(el)) boxes.set(el, []);
+    for (const r of rects) boxes.get(el).push({ t, f, cs, top: r.top, bottom: r.bottom, baseline: (r.top + f.ascent + r.bottom - f.descent) / 2 });
+  }
+  const moving = document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.effect?.target).filter((t) => t instanceof Element);
+  const rows = [];
+  for (const [el, items] of boxes) {
+    if (moving.some((m) => m === el || m.contains(el)) || skip.some((sel) => el.matches(sel))) continue;
+    const r = el.getBoundingClientRect();
+    if (!r.height || r.height > maxHeight) continue;
+    // The lines, top to bottom: text that overlaps the row above by half its height or more belongs to
+    // it; each row keeps its highest cap top and its lowest baseline.
+    const sorted = [...items].sort((a, b) => a.top - b.top);
+    const lines = [];
+    for (const i of sorted) {
+      const last = lines[lines.length - 1];
+      const overlap = last ? Math.min(last.bottom, i.bottom) - Math.max(last.top, i.top) : 0;
+      if (last && overlap >= 0.5 * Math.min(last.bottom - last.top, i.bottom - i.top)) {
+        last.bottom = Math.max(last.bottom, i.bottom);
+        last.capTop = Math.min(last.capTop, i.baseline - i.f.cap);
+        last.baseline = Math.max(last.baseline, i.baseline);
+      } else lines.push({ top: i.top, bottom: i.bottom, capTop: i.baseline - i.f.cap, baseline: i.baseline });
+    }
+    if (lines.length < 2 || rotated(el)) continue;
+    const blockTop = lines[0].capTop, blockBottom = lines[lines.length - 1].baseline;
+    // A plain block box taller than its content starts at its top by design.
+    const bcs = getComputedStyle(el);
+    if (!el.matches('button, [role=button], a, summary') && /^(block|flow-root|list-item)$/.test(bcs.display)) {
+      const inner = r.bottom - (parseFloat(bcs.borderBottomWidth) || 0) - (parseFloat(bcs.paddingBottom) || 0);
+      if (inner - lines[lines.length - 1].bottom > 4) continue;
+    }
+    const stacked = [...el.querySelectorAll('*')].some((c) => {
+      if (items.some((i) => c.contains(i.t))) return false;
+      const cr = c.getBoundingClientRect();
+      if (!cr.width || !cr.height || /absolute|fixed/.test(getComputedStyle(c).position)) return false;
+      return cr.bottom <= blockTop + 1 || cr.top >= blockBottom - 1;
+    });
+    if (stacked) continue;
+    const off = (blockTop + blockBottom) / 2 - (r.top + r.height / 2);
+    if (Math.abs(off) < min) continue;
+    rows.push({
+      where: path(el),
+      text: items.map((i) => i.t.textContent.trim()).filter((v, k, a) => a.indexOf(v) === k).join(' / ').replace(/\s+/g, ' ').slice(0, 40),
+      lines: lines.length,
+      height: Math.round(r.height),
+      off: Math.round(off * 10) / 10,
+    });
+  }
+  return rows;
 }
