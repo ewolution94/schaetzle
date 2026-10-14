@@ -156,7 +156,17 @@ npm run dev          # http://localhost:5810, the game server included (5800 is 
 npm run check        # svelte-check / TypeScript
 npm test             # unit tests: the game, scoring, prices, the eBay source, Census (Node 24+)
 npm run build && npm start   # production server on :8080 (or --port 5811)
+AUDIT=1 node tools/qa.mjs http://localhost:5810   # a game in WebKit, every screen (below)
 ```
+
+`tools/qa.mjs` plays the host and a guest in Playwright WebKit (Folio's install) with two bots through
+the API: home, Settings, the avatar maker, the join page, the lobby, every mode (teams in one), the
+joker, waiting buttons, a toast, the connection pill, the big screen at desktop widths, and a game
+ended early. Shots go to `/tmp/schaetzle-qa/`; console errors and sideways overflow are listed. `W=1280
+H=800`, `LANG_UI=en`, `ENGINE=chromium`, `MODES=classic,sort` and `ROUNDS` change the run; `AUDIT=1` also
+checks that every label sits in the middle of its box and that digits stay full height
+(`tools/text-audit.mjs`, from development/plans/text-centering.md). With `SCHAETZLE_SOURCE=mock` on
+the server it plays the demo items.
 
 With `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` in the environment, the dev server draws live
 listings too.
@@ -192,7 +202,8 @@ server/api.mjs            the game over HTTP: JSON moves, the SSE stream
 server/scoring.mjs        points for a guess, a pick (higher or lower) and an order (sort)
 server/images.mjs         product photos through our origin
 server/items/             collection.mjs + collection.json, ebay.mjs (API), mock.mjs (demo), themes.mjs
-tools/                    the collector bookmarklet (collector.mjs, ebay-page.mjs) and its import (collect.mjs)
+tools/                    the collector bookmarklet (collector.mjs, ebay-page.mjs) and its import (collect.mjs);
+                          qa.mjs (a game in the browser) and text-audit.mjs (labels centred in their boxes)
 server/census.mjs         forwards /_e.js and /_e to Census (visit counts)
 src/lib/room.svelte.ts    the live room: the stream, reconnects, moves
 src/lib/price.ts          reading and showing prices (5,80€)
