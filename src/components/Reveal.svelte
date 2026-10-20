@@ -40,6 +40,7 @@
   const PLAYER_COLOURS: Record<string, string> = {
     mint: '#64c8b9', purple: '#b198db', orange: '#f8a171', blue: '#6ea0eb', pink: '#e89fdd',
     green: '#a9e034', yellow: '#f5d547', beige: '#d8bda4', teal: '#099f91', plum: '#9c7fcb',
+    coral: '#ff8a7a', sky: '#8ecdf2', sage: '#a9c7a1', ochre: '#d9a441',
   };
 
   let tagEl: HTMLElement | undefined = $state();

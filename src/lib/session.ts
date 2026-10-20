@@ -28,7 +28,7 @@ function write(key: string, value: string | null) {
 export const savedName = () => read(NAME) ?? '';
 export const saveName = (name: string) => write(NAME, name.trim() || null);
 /** The avatar's parts: colours, patterns and figures (server/game.mjs → AVATAR_RANGES, Folio's `tag` emblem). */
-const RANGES = [10, 8, 23];
+const RANGES = [14, 12, 31];
 
 /** The price tag this device plays under; the first time, a random colour and pattern with the name's initial. */
 export function savedAvatar(): Avatar {

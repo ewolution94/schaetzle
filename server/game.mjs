@@ -39,9 +39,9 @@ const APART = 1.1;
 /** Jokers per player and game. A joker scores the round's maximum without a guess. */
 export const JOKER_CHOICES = [0, 1, 2, 3];
 /** The players' colours; a price tag's first part picks one (in this order: Folio's `tag` palette). */
-export const COLORS = ['mint', 'purple', 'orange', 'blue', 'pink', 'green', 'yellow', 'beige', 'teal', 'plum'];
-/** The avatar's parts: 10 colours, 8 patterns and 23 figures (Folio's `tag` emblem; figure 0 is the initial). */
-export const AVATAR_RANGES = [COLORS.length, 8, 23];
+export const COLORS = ['mint', 'purple', 'orange', 'blue', 'pink', 'green', 'yellow', 'beige', 'teal', 'plum', 'coral', 'sky', 'sage', 'ochre'];
+/** The avatar's parts: 14 colours, 12 patterns and 31 figures (Folio's `tag` emblem; figure 0 is the initial). */
+export const AVATAR_RANGES = [COLORS.length, 12, 31];
 
 export const LIMITS = {
   rooms: 200,

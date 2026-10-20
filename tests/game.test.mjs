@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { AVATAR_RANGES, cleanAvatar, cleanName, mergeSettings, DEFAULT_SETTINGS, CODE, GameError } from '../server/game.mjs';
 import { createMockSource, MOCK_ITEMS } from '../server/items/mock.mjs';
 import { seeded, setup, threePlayers, watch } from './helpers.mjs';
+import { emblemRanges } from '../vendor/ewo/elements/emblem-core.js';
 import { PRICES, THEME_KEYS } from '../server/items/themes.mjs';
 import { score } from '../server/scoring.mjs';
 
@@ -35,13 +36,16 @@ test('names are cleaned, capped, and made unique within a room', () => {
 });
 
 test('an avatar is a price tag, [colour, pattern, figure], and its colour is the player\'s', async () => {
-  assert.deepEqual(AVATAR_RANGES, [10, 8, 23]);
-  for (const ok of [[0, 0, 0], [9, 7, 22], [3, 5, 1]]) assert.deepEqual(cleanAvatar(ok), ok);
+  // The server's ranges are Folio's tag emblem's (the runtime image has no vendor files); a vendor
+  // update that adds options must add them here too.
+  assert.deepEqual(AVATAR_RANGES, emblemRanges('tag'));
+  const [colours, patterns, figures] = AVATAR_RANGES;
+  for (const ok of [[0, 0, 0], [colours - 1, patterns - 1, figures - 1], [3, 5, 1]]) assert.deepEqual(cleanAvatar(ok), ok);
   // Anything else: the colour given (random without one), a random pattern, the name's initial.
-  for (const no of [null, undefined, '3,5,1', [3, 5], [10, 0, 0], [0, 8, 0], [0, 0, 23], [-1, 0, 0], [1.5, 2, 2], [1, 2, 3, 4], {}]) {
+  for (const no of [null, undefined, '3,5,1', [3, 5], [colours, 0, 0], [0, patterns, 0], [0, 0, figures], [-1, 0, 0], [1.5, 2, 2], [1, 2, 3, 4], {}]) {
     const [colour, pattern, figure] = cleanAvatar(no, 4);
     assert.equal(colour, 4, String(no));
-    assert.ok(Number.isInteger(pattern) && pattern >= 0 && pattern < 8, String(no));
+    assert.ok(Number.isInteger(pattern) && pattern >= 0 && pattern < patterns, String(no));
     assert.equal(figure, 0, String(no));
   }
   const { games } = setup();

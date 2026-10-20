@@ -229,6 +229,11 @@ ewo-connection {
 .c-beige { --pc: #d8bda4; }
 .c-teal { --pc: #099f91; }
 .c-plum { --pc: #9c7fcb; }
+/* 2026-10-20: four more, the tag emblem's new colours (Folio), in its order. */
+.c-coral { --pc: #ff8a7a; }
+.c-sky { --pc: #8ecdf2; }
+.c-sage { --pc: #a9c7a1; }
+.c-ochre { --pc: #d9a441; }
 
 /* Teams: four strong colours, apart from each other and from the players' soft ones. Used as
    dots, bars and outlines, never behind text. */
