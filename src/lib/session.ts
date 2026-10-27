@@ -1,8 +1,10 @@
 // What a device remembers: the name and avatar you play under, and your seat in each room (so a reload, or
-// the phone locking mid-game, puts you back in the same seat with your score). Storage can be
-// blocked; then nothing is remembered and everything still works.
+// the phone locking mid-game, puts you back in the same seat with your score). The name and the tag also
+// go to Folio's shared cookie, so they follow you to the other ewolution games (development/plans/emblems.md).
+// Storage can be blocked; then nothing is remembered and everything still works.
 
 import type { Avatar, Seat } from './api';
+import { relatedEmblem, shareEmblem, sharedEmblem, sharedName, shareName } from '../../vendor/ewo/elements/emblem-shared.js';
 
 const NAME = 'schaetzle:name';
 const AVATAR = 'schaetzle:avatar';
@@ -25,22 +27,43 @@ function write(key: string, value: string | null) {
   }
 }
 
-export const savedName = () => read(NAME) ?? '';
-export const saveName = (name: string) => write(NAME, name.trim() || null);
+/** The name field's maxlength: a name from another game may be longer. */
+const NAME_MAX = 24;
+
+/** The name you last joined with, here or in another ewolution game. */
+export const savedName = () => (sharedName() || read(NAME) || '').slice(0, NAME_MAX);
+export function saveName(name: string) {
+  write(NAME, name.trim() || null);
+  shareName(name);
+}
 /** The avatar's parts: colours, patterns and figures (server/game.mjs → AVATAR_RANGES, Folio's `tag` emblem). */
 const RANGES = [14, 12, 31];
 
-/** The price tag this device plays under; the first time, a random colour and pattern with the name's initial. */
-export function savedAvatar(): Avatar {
+const own = (): Avatar | null => {
   try {
     const value = JSON.parse(read(AVATAR) ?? 'null');
     if (Array.isArray(value) && value.length === 3 && value.every((v, i) => Number.isInteger(v) && v >= 0 && v < RANGES[i])) return [value[0], value[1], value[2]];
   } catch {
-    // a new one
+    // none
   }
-  return [Math.floor(Math.random() * RANGES[0]), Math.floor(Math.random() * RANGES[1]), 0];
+  return null;
+};
+
+/**
+ * The price tag this device plays under: the one you last picked, here or in another game; else this
+ * game's own, else one with your coin's or shield's charge from the other games; the first time, a random
+ * colour and pattern with the name's initial.
+ */
+export function savedAvatar(): Avatar {
+  const shared = (sharedEmblem('tag') ?? own() ?? relatedEmblem('tag')) as Avatar | null;
+  return shared ?? [Math.floor(Math.random() * RANGES[0]), Math.floor(Math.random() * RANGES[1]), 0];
 }
-export const saveAvatar = (avatar: Avatar) => write(AVATAR, JSON.stringify(avatar));
+/** Kept here; shared with the other games when it's new (a pick, or the first tag you join with), not when joining with the one you had. */
+export function saveAvatar(avatar: Avatar) {
+  const before = own();
+  write(AVATAR, JSON.stringify(avatar));
+  if (String(before) !== String(avatar)) shareEmblem('tag', avatar);
+}
 
 // The emoji avatars' key, from before the price tags (2026-10-07).
 write('schaetzle:emoji', null);
