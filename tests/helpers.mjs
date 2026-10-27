@@ -1,4 +1,4 @@
-// Shared by the game tests: a fake clock, a seeded random, and rooms set up the way pages use them.
+// Shared by the game tests: a fake clock, a seeded randomInt, and rooms set up the way pages use them.
 
 import { createGames } from '../server/game.mjs';
 import { createMockSource } from '../server/items/mock.mjs';
@@ -33,16 +33,40 @@ export function fakeClock(start = 1_000_000) {
 
 export function setup(options = {}) {
   const clock = fakeClock();
-  const source = options.source ?? createMockSource({ random: seeded(7) });
+  const source = options.source ?? createMockSource({ randomInt: seeded(7) });
   const games = createGames({ source, clock });
   return { clock, games };
 }
 
-export function seeded(seed) {
+/** mulberry32's 32-bit words: the same sequence for the same seed. */
+export function words(seed = 1) {
   return () => {
-    seed = (seed * 16807) % 2147483647;
-    return (seed - 1) / 2147483646;
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return (t ^ (t >>> 14)) >>> 0;
   };
+}
+
+/**
+ * An integer in 0..n-1 from 32-bit words, exactly uniform: a word at or past the last full multiple
+ * of n is drawn again, the way node:crypto's randomInt does it (learnings/randomness.md in the
+ * workspace). Scaling or taking the word modulo n would favour the low numbers.
+ * @param {number} n  @param {() => number} word
+ */
+export function fairInt(n, word) {
+  if (!Number.isInteger(n) || n < 1 || n > 0x100000000) throw new RangeError('fairInt needs an integer 1 ≤ n ≤ 2^32');
+  const limit = Math.floor(0x100000000 / n) * n;
+  let w = word() >>> 0;
+  while (w >= limit) w = word() >>> 0;
+  return w % n;
+}
+
+/** A seeded randomInt(n) → 0..n-1, for the item sources in place of node:crypto's. */
+export function seeded(seed = 1) {
+  const word = words(seed);
+  return (n) => fairInt(n, word);
 }
 
 /** Subscribes like a page would, and keeps the latest view. */

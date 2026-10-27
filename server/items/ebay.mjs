@@ -12,6 +12,7 @@
 // Docs: https://developer.ebay.com/api-docs/buy/browse/resources/item_summary/methods/search
 //       https://developer.ebay.com/api-docs/static/oauth-client-credentials-grant.html
 
+import { randomInt as cryptoInt } from 'node:crypto';
 import { PRICES, THEMES, blocked } from './themes.mjs';
 import { shuffle } from './mock.mjs';
 
@@ -45,11 +46,11 @@ export class SourceError extends Error {
  *   marketplace?: string,
  *   fetch?: typeof globalThis.fetch,
  *   now?: () => number,
- *   random?: () => number,
+ *   randomInt?: (n: number) => number,
  *   api?: string,
  * }} options
  */
-export function createEbaySource({ clientId, clientSecret, images, marketplace = 'EBAY_DE', fetch = globalThis.fetch, now = Date.now, random = Math.random, api = API }) {
+export function createEbaySource({ clientId, clientSecret, images, marketplace = 'EBAY_DE', fetch = globalThis.fetch, now = Date.now, randomInt = (n) => cryptoInt(n), api = API }) {
   /** @type {{ token: string, expires: number } | null} */
   let current = null;
   /** @type {Promise<{ token: string, expires: number }> | null} */
@@ -143,18 +144,18 @@ export function createEbaySource({ clientId, clientSecret, images, marketplace =
       const range = PRICES[price];
       const keywords = shuffle(
         themes.flatMap((theme) => THEMES[theme].map((keyword) => ({ theme, keyword }))),
-        random,
+        randomInt,
       ).slice(0, SEARCHES);
 
       // Each keyword is one bucket; a random page of it first, the first page if that's empty.
       const buckets = await Promise.all(
         keywords.map(async ({ theme, keyword }) => {
-          const offset = PAGE * Math.floor(random() * 3);
+          const offset = PAGE * randomInt(3);
           let found = await search(keyword, range, offset);
           if (!found.length && offset) found = await search(keyword, range, 0);
           return shuffle(
             found.map((summary) => toItem(summary, theme, range)).filter((item) => item && !exclude.has(item.id)),
-            random,
+            randomInt,
           );
         }),
       );

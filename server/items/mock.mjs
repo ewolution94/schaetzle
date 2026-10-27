@@ -4,6 +4,7 @@
 //
 // The prices are rough eBay.de prices for the thing as described, rounded the way sellers do.
 
+import { randomInt as cryptoInt } from 'node:crypto';
 import { PRICES } from './themes.mjs';
 
 /** @typedef {import('./themes.mjs').Theme} Theme */
@@ -133,9 +134,9 @@ export const MOCK_ITEMS = ROWS.map(([theme, emoji, tint, condition, title, price
 }));
 
 /**
- * @param {{ random?: () => number }} [options]
+ * @param {{ randomInt?: (n: number) => number }} [options]  0..n-1, node:crypto's unless a test seeds it
  */
-export function createMockSource({ random = Math.random } = {}) {
+export function createMockSource({ randomInt = (n) => cryptoInt(n) } = {}) {
   return {
     name: 'mock',
     demo: true,
@@ -156,7 +157,7 @@ export function createMockSource({ random = Math.random } = {}) {
       const picked = [];
       const taken = new Set();
       for (const tier of tiers) {
-        for (const item of shuffle(tier, random)) {
+        for (const item of shuffle(tier, randomInt)) {
           if (picked.length >= count) break;
           if (taken.has(item.id)) continue;
           taken.add(item.id);
@@ -168,11 +169,16 @@ export function createMockSource({ random = Math.random } = {}) {
   };
 }
 
-/** Fisher–Yates on a copy. */
-export function shuffle(list, random = Math.random) {
+/**
+ * Fisher–Yates on a copy, with whole numbers: node:crypto's randomInt is exactly uniform, where a
+ * scaled float or Math.random would not be (learnings/randomness.md in the workspace).
+ * @template T  @param {readonly T[]} list  @param {(n: number) => number} [randomInt] 0..n-1
+ * @returns {T[]}
+ */
+export function shuffle(list, randomInt = (n) => cryptoInt(n)) {
   const out = [...list];
   for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
+    const j = randomInt(i + 1);
     [out[i], out[j]] = [out[j], out[i]];
   }
   return out;

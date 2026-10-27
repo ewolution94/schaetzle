@@ -11,6 +11,7 @@
 // withFallback). Across games it rotates (rotation.mjs): within each search, listings no game has
 // had come first, then the ones shown longest ago, and searches that haven't come up lately go first.
 
+import { randomInt as cryptoInt } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PRICES, blocked } from './themes.mjs';
@@ -73,13 +74,13 @@ function distinct(items) {
  * @param {{
  *   items: CollectionItem[],
  *   images: { register(candidates: string[]): string },
- *   random?: () => number,
+ *   randomInt?: (n: number) => number,
  *   rotation?: ReturnType<typeof createRotation>,
  * }} options
  */
-export function createCollectionSource({ items, images, random = Math.random, rotation = createRotation() }) {
+export function createCollectionSource({ items, images, randomInt = (n) => cryptoInt(n), rotation = createRotation() }) {
   /** Shuffled, then the least recently shown first (a stable sort keeps the shuffle among equals). */
-  const freshFirst = (list) => shuffle(list, random).sort((a, b) => rotation.lastShown(a.id) - rotation.lastShown(b.id));
+  const freshFirst = (list) => shuffle(list, randomInt).sort((a, b) => rotation.lastShown(a.id) - rotation.lastShown(b.id));
 
   return {
     name: 'collection',
@@ -109,7 +110,7 @@ export function createCollectionSource({ items, images, random = Math.random, ro
         for (const item of picked) used.set(keyOf(item), (used.get(keyOf(item)) ?? 0) + 1);
         const buckets = [...byKeyword].map(([key, list]) => distinct(list).slice(0, Math.max(0, PER_KEYWORD - (used.get(key) ?? 0))));
         // Searches whose best listing is freshest go first, so the searches rotate too.
-        const order = shuffle(buckets.filter((b) => b.length), random).sort((a, b) => rotation.lastShown(a[0].id) - rotation.lastShown(b[0].id));
+        const order = shuffle(buckets.filter((b) => b.length), randomInt).sort((a, b) => rotation.lastShown(a[0].id) - rotation.lastShown(b[0].id));
         for (const item of mix(order, count - picked.length)) {
           taken.add(item.id);
           picked.push(item);

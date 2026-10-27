@@ -96,7 +96,7 @@ test('a draw fetches one token, searches ebay.de and hands out our own photo pat
     pages: (q) => Array.from({ length: 6 }, () => summary({ itemId: `v1|${++n}|0`, title: `${q} Nummer ${n}` })),
   });
   const images = registry();
-  const source = createEbaySource({ clientId: 'id', clientSecret: 'secret', images, fetch, random: () => 0 });
+  const source = createEbaySource({ clientId: 'id', clientSecret: 'secret', images, fetch, randomInt: () => 0 });
   const items = await source.draw({ count: 10, price: 'everyday', themes: ['garden', 'home'] });
 
   assert.equal(items.length, 10);
@@ -128,7 +128,7 @@ test('a draw fetches one token, searches ebay.de and hands out our own photo pat
 test('the draw mixes keywords and skips items a room has seen', async () => {
   let n = 0;
   const { fetch } = fakeEbay({ pages: (q) => Array.from({ length: 5 }, () => summary({ itemId: `${q}-${++n}`, title: `${q} ${n}` })) });
-  const source = createEbaySource({ clientId: 'id', clientSecret: 's', images: registry(), fetch, random: () => 0.5 });
+  const source = createEbaySource({ clientId: 'id', clientSecret: 's', images: registry(), fetch, randomInt: (n) => n >> 1 });
   const items = await source.draw({ count: 8, price: 'everyday', themes: ['tech'], exclude: new Set(['ebay:Laptop-1']) });
   const keywords = new Set(items.map((i) => i.title.split(' ')[0]));
   assert.ok(keywords.size >= 3, [...keywords].join());

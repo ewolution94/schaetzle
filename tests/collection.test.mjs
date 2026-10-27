@@ -156,7 +156,7 @@ test('a game mixes the keywords of the host’s categories, then takes others in
     ['garden', 'Kugelgrill', 4, 900],
   ]);
   const images = registry();
-  const source = createCollectionSource({ items, images, random: seeded(2) });
+  const source = createCollectionSource({ items, images, randomInt: seeded(2) });
   const ten = await source.draw({ count: 10, price: 'everyday', themes: ['kitchen', 'tech'], exclude: new Set() });
   assert.equal(ten.length, 10);
   assert.ok(ten.every((item) => item.theme !== 'garden'));
@@ -173,7 +173,7 @@ test('a game mixes the keywords of the host’s categories, then takes others in
 });
 
 test('a game the collection can’t fill plays the demo list, and says "demo"', async () => {
-  const source = withFallback(createCollectionSource({ items: collection([['tech', 'Laptop', 3]]), images: registry() }), createMockSource({ random: seeded(4) }), () => {});
+  const source = withFallback(createCollectionSource({ items: collection([['tech', 'Laptop', 3]]), images: registry() }), createMockSource({ randomInt: seeded(4) }), () => {});
   const { games } = setup({ source });
   const { code, token } = games.create({ name: 'Anna' });
   games.join(code, { name: 'Ben' });
@@ -203,7 +203,7 @@ test('one search never fills a game: at most three of it, spread over the rounds
     ['kitchen', 'Topfset', 3],
     ['tech', 'Laptop', 3],
   ]);
-  const source = createCollectionSource({ items, images: registry(), random: seeded(6) });
+  const source = createCollectionSource({ items, images: registry(), randomInt: seeded(6) });
   const game = await source.draw({ count: 12, price: 'everyday', themes: ['kitchen'], exclude: new Set() });
   const count = (keyword) => game.filter((item) => item.title.startsWith(keyword)).length;
   assert.equal(PER_KEYWORD, 3);
@@ -272,7 +272,7 @@ test('games rotate: listings shown lately wait until the fresh ones are used up,
   let now = 1_000_000;
   const items = collection(['Laptop', 'Tablet', 'Kopfhörer', 'Smartphone'].map((keyword) => ['tech', keyword, 6]));
   const request = { count: 8, price: 'everyday', themes: ['tech'], exclude: new Set() };
-  const make = () => createCollectionSource({ items, images: registry(), random: seeded(3), rotation: createRotation({ dir, now: () => now, log: () => {} }) });
+  const make = () => createCollectionSource({ items, images: registry(), randomInt: seeded(3), rotation: createRotation({ dir, now: () => now, log: () => {} }) });
 
   // 24 listings, 8 a game: three games without a repeat.
   const source = make();

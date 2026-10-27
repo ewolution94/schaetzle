@@ -352,7 +352,7 @@ test('the demo list fills every price range and theme with plausible items', asy
     assert.ok(item.title.length > 8, item.title);
     assert.ok(item.art.emoji, item.title);
   }
-  const source = createMockSource({ random: seeded(3) });
+  const source = createMockSource({ randomInt: seeded(3) });
   for (const price of Object.keys(PRICES)) {
     const items = await source.draw({ count: 19, price, themes: THEME_KEYS, exclude: new Set() });
     assert.equal(items.length, 19, price);
