@@ -10,7 +10,8 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# The server has zero dependencies, so the runtime image is just Node + the built app.
+# The server has zero dependencies, so the runtime image is just Node + the built app, plus
+# Folio's config helper (Dashboard's defaults).
 # Games live in memory and end with the container. The only thing kept on disk is the collection's
 # rotation (which listings came up lately) in /data, a volume on the NAS so it outlives a redeploy.
 FROM node:24-alpine
@@ -18,6 +19,7 @@ WORKDIR /app
 ENV NODE_ENV=production PORT=8080 TZ=Europe/Berlin SCHAETZLE_DATA=/data
 COPY --from=build /app/dist ./dist
 COPY server ./server
+COPY vendor/ewo/elements/config-server.js vendor/ewo/elements/config-core.js ./vendor/ewo/elements/
 COPY package.json ./
 RUN mkdir -p /data && chown node:node /data
 USER node

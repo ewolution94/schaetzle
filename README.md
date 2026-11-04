@@ -192,6 +192,7 @@ This mirrors Cantina, Atrium and Aale Spiele:
 | `SCHAETZLE_SOURCE` | | `mock` forces the demo items |
 | `SCHAETZLE_DATA` | `/data` in the image | where the collection's rotation is kept; unset, it's in memory until a restart |
 | `SCHAETZLE_CENSUS` | off | Census's ingest origin, `http://census:4901` on the NAS |
+| `DASHBOARD_URL` | off | Dashboard's apps' port, `http://dashboard:8081` on the NAS: the language and theme a device that hasn't picked starts from (the family's, or Schätzle's own). Off or down: the built-in ones, as before |
 
 ## Project layout
 

@@ -33,6 +33,7 @@ services:
       # Visit counts: /_e and /_e.js are forwarded to Census over the `ewolution` network.
       # Remove the line to stop counting; the page doesn't change either way.
       - SCHAETZLE_CENSUS=http://census:4901
+      - DASHBOARD_URL=http://dashboard:8081
     volumes:
       # Which collected listings came up lately, so games rotate across days (server/items/rotation.mjs).
       # Small; losing it only means games forget what they showed.

@@ -8,9 +8,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { themeShift } from '../../vendor/ewo/elements/theme-shift.js';
-  import { setTheme, storedTheme, type ThemeChoice } from '../../vendor/ewo/elements/theme-toggle.js';
+  import { storedTheme, type ThemeChoice } from '../../vendor/ewo/elements/theme-toggle.js';
   import { effectiveTheme, onThemeChange } from '../../vendor/ewo/elements/base.js';
-  import { i18n, setLanguage, systemLang, t, errorText, type LangChoice } from '../lib/i18n.svelte';
+  import { defaultLang, i18n, setLanguage, t, errorText, type LangChoice } from '../lib/i18n.svelte';
+  import { applyTheme, defaultTheme } from '../lib/theme';
   import { ApiError } from '../lib/api';
   import type { Room } from '../lib/room.svelte';
   import { actAt } from '../lib/waits';
@@ -64,16 +65,16 @@
     onclose();
   }
 
-  // Another tab, or the system's own switch while on System: the row shows what's stored.
+  // Another tab, or the system's own switch while on Default: the row shows what's stored.
   onMount(() => onThemeChange(() => (theme = storedTheme())));
 
   /**
    * The picked control updates at once; the page changes under themeShift's veil when it really
-   * changes, and at once when it doesn't (System while the system already shows that language).
+   * changes, and at once when it doesn't (Default while the page already shows that language).
    */
   function pickLanguage(next: LangChoice) {
     if (next === i18n.choice) return;
-    const shows = next === 'system' ? systemLang() : next;
+    const shows = next === 'system' ? defaultLang() : next;
     if (shows === i18n.lang) setLanguage(next);
     else themeShift(() => setLanguage(next));
   }
@@ -81,10 +82,9 @@
   function pickTheme(next: ThemeChoice) {
     if (next === theme) return;
     theme = next;
-    const prefersDark = matchMedia('(prefers-color-scheme: dark)').matches;
-    const shows = next === 'system' ? (prefersDark ? 'dark' : 'light') : next;
-    if (shows === effectiveTheme()) setTheme(next);
-    else themeShift(() => setTheme(next));
+    const shows = next === 'system' ? defaultTheme() : next;
+    if (shows === effectiveTheme()) applyTheme(next);
+    else themeShift(() => applyTheme(next));
   }
 </script>
 

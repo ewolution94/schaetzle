@@ -1,7 +1,11 @@
-// German and English. The choice lives in Settings (General → Language): System follows the
-// browser's languages, Deutsch or English pins one. It's kept under `ewo:lang` (the family's key;
-// System removes it), and public/boot.js applies it before first paint. Product titles stay as eBay
-// has them (German): they're the listing's own words.
+// German and English. The choice lives in Settings (General → Language): Default takes Dashboard's
+// language when it set one (#ewo-config, src/lib/defaults.ts) and otherwise follows the browser's
+// languages, Deutsch or English pins one. It's kept under `ewo:lang` (the family's key; Default
+// removes it), and public/boot.js applies it before first paint. Product titles stay as eBay has
+// them (German): they're the listing's own words.
+
+import { readConfig } from '../../vendor/ewo/elements/config-client.js';
+import { languageFor } from './defaults';
 
 export type Lang = 'de' | 'en';
 export type LangChoice = Lang | 'system';
@@ -27,13 +31,16 @@ export function systemLang(): Lang {
   return 'en';
 }
 
-const choice = storedChoice();
-export const i18n = $state({ choice, lang: choice === 'system' ? systemLang() : choice });
+/** What Default shows: Dashboard's language, else the browser's (as public/boot.js). */
+export const defaultLang = (): Lang => languageFor('system', readConfig().lang, systemLang());
 
-/** Stores a choice ('system' removes it) and shows the page in that language. */
+const choice = storedChoice();
+export const i18n = $state({ choice, lang: choice === 'system' ? defaultLang() : choice });
+
+/** Stores a choice ('system', Default, removes it) and shows the page in that language. */
 export function setLanguage(next: LangChoice) {
   i18n.choice = next;
-  i18n.lang = next === 'system' ? systemLang() : next;
+  i18n.lang = next === 'system' ? defaultLang() : next;
   document.documentElement.lang = i18n.lang;
   try {
     if (next === 'system') localStorage.removeItem(KEY);
@@ -43,7 +50,7 @@ export function setLanguage(next: LangChoice) {
   }
 }
 
-// The browser's own language changing applies at once while the choice is System.
+// The browser's own language changing applies at once while the choice is Default.
 addEventListener('languagechange', () => {
   if (i18n.choice === 'system') setLanguage('system');
 });
